@@ -1,0 +1,191 @@
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: openunisons.openunison.tremolo.io
+spec:
+  group: openunison.tremolo.io
+  versions:
+    - name: v1
+      served: true
+      storage: true
+  version: v1
+  scope: Namespaced
+  names:
+    plural: openunisons
+    singular: openunison
+    kind: OpenUnison
+    shortNames:
+    - ou
+  validation:
+   # openAPIV3Schema is the schema for validating custom objects.
+    openAPIV3Schema:
+      properties:
+        spec:
+          properties:
+            image:
+              type: string
+            replicas:
+              type: integer
+            enable_activemq:
+              type: boolean
+            activemq_image:
+              type: string
+            dest_secret:
+              type: string
+            source_secret:
+              type: string
+            secret_data:
+              type: array
+              items:
+                type: string
+            non_secret_data:
+              type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  value:
+                    type: string
+            openunison_network_configuration:
+              type: object
+              properties:
+                force_to_lower_case:
+                  type: boolean
+                open_port:
+                  type: integer
+                open_external_port:
+                  type: integer
+                secure_port:
+                  type: integer
+                secure_external_port:
+                  type: integer
+                force_to_secure:
+                  type: boolean
+                activemq_dir:
+                  type: string
+                client_auth:
+                  type: string
+                allowed_client_names:
+                  type: array
+                  items:
+                    type: string
+                ciphers:
+                  type: array
+                  items:
+                   type: string
+                path_to_deployment:
+                  type: string
+                path_to_env_file:
+                  type: string
+                secure_key_alias:
+                  type: string
+                allowed_tls_protocols:
+                  type: array
+                  items:
+                    type: string
+                quartz_dir:
+                  type: string
+                context_root:
+                  type: string
+                disable_http2:
+                  type: boolean
+                allow_un_escaped_chars:
+                  type: string
+                welecome_pages:
+                  type: array
+                  items:
+                    type: string
+                error_pages:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      code:
+                        type: integer
+                      location:
+                        type: string
+                redirect_to_context_root:
+                  type: boolean
+            key_store:
+              type: object
+              properties:
+                static_keys:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      version:
+                        type: integer
+                trusted_certificates:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      pem_data:
+                        type: string
+                key_pairs:
+                  type: object
+                  properties:
+                    create_keypair_template:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          value:
+                            type: string
+                    keys:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          tls_secret_name:
+                            type: string
+                          import_into_ks:
+                            type: string
+                            enum:
+                            - keypair
+                            - certificate
+                            - none
+                          replace_if_exists:
+                            type: boolean
+                          create_data:
+                            type: object
+                            properties:
+                              sign_by_k8s_ca:
+                                type: boolean
+                              server_name:
+                                type: string
+                              subject_alternative_names:
+                                type: array
+                                items:
+                                  type: string
+                              key_size:
+                                type: integer
+                              ca_cert:
+                                type: boolean
+                              target_namespace:
+                                type: string
+                              secret_info:
+                                type: object
+                                properties:
+                                  type_of_secret:
+                                    type: string
+                                  cert_name:
+                                    type: string
+                                  key_name:
+                                    type: string
+                    
+                
+                  
+                
+                    
