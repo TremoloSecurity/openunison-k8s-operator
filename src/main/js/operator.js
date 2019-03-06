@@ -62,6 +62,15 @@ function process_key_pair_config(cfg_obj,key_config,ouKs,ksPassword) {
     print("\n\nProcessing key '" + key_config.name + "'");
     create_keypair_template = cfg_obj.key_store.key_pairs.create_keypair_template;
 
+    secret_info = key_config.create_data.secret_info;
+
+    if (secret_info == null) {
+        secret_info = {};
+        secret_info['type_of_secret'] = 'kubernetes.io/tls';
+        secret_info['cert_name'] = 'tls.crt';
+        secret_info['key_name'] = 'tls.key';
+    }
+
     //determine the namespace of the secret
     target_ns = k8s_namespace;
     if (key_config.create_data.target_namespace != null && key_config.create_data.target_namespace !== "") {
@@ -78,13 +87,33 @@ function process_key_pair_config(cfg_obj,key_config,ouKs,ksPassword) {
         secret_json = JSON.parse(secret_response.data);
         if (! key_config.replace_if_exists) {
             print("Adding existing secret to keystore");
-            //TODO - add key to keystore
+            
+            if (key_config.import_into_ks == null || key_config.import_into_ks === "" || key_config.import_into_ks === "keypair") {
+                print("Storing to keystore");
+                CertUtils.importKeyPairAndCert(ouKs,ksPassword,key_config.name,secret_json.data[secret_info.key_name],secret_json.data[secret_info.cert_name]);
+            } else if (key_config.import_into_ks === "certificate") {
+                print("Storing just the certificate");
+                CertUtils.importCertificate(ouKs,ksPassword,key_config.name,secret_json.data[secret_info.cert_name]);
+            } else {
+                print("Not storing at all");
+            }
+
+            
 
             return;
         } else {
-            if (secret_json.metadata.labels.tremolo_operator_created != null) {
+            if (secret_json.metadata.labels != null && secret_json.metadata.labels['tremolo_operator_created'] != null) {
                 print("Adding existing secret to keystore");
-                //TODO - add key to keystore
+                
+                if (key_config.import_into_ks == null || key_config.import_into_ks === "" || key_config.import_into_ks === "keypair") {
+                    print("Storing to keystore");
+                    CertUtils.importKeyPairAndCert(ouKs,ksPassword,key_config.name,secret_json.data[secret_info.key_name],secret_json.data[secret_info.cert_name]);
+                } else if (key_config.import_into_ks === "certificate") {
+                    print("Storing just the certificate");
+                    CertUtils.importCertificate(ouKs,ksPassword,key_config.name,secret_json.data[secret_info.cert_name]);
+                } else {
+                    print("Not storing at all");
+                }
 
                 return;
             }
@@ -103,7 +132,7 @@ function process_key_pair_config(cfg_obj,key_config,ouKs,ksPassword) {
     }
     certInfo["caCert"] = key_config.create_data.ca_cert;
     certInfo["size"] = key_config.create_data.key_size;
-    
+
     //figure out the server name/cn and subject alternative names
     server_name = script_val(key_config.create_data.server_name);
     certInfo["serverName"] = server_name;
@@ -140,8 +169,9 @@ function process_key_pair_config(cfg_obj,key_config,ouKs,ksPassword) {
         apiResp = k8s.postWS('/apis/certificates.k8s.io/v1beta1/certificatesigningrequests',JSON.stringify(csrReq));
 
         if (apiResp.code == 409) {
-            print("CertManager is not enabled on this cluster.  Change sign_by_k8s_cluster to false");
-            exit(1);
+            print("Existing CSR, deleting");
+            k8s.deleteWS('/apis/certificates.k8s.io/v1beta1/certificatesigningrequests/' + server_name);
+            apiResp = k8s.postWS('/apis/certificates.k8s.io/v1beta1/certificatesigningrequests',JSON.stringify(csrReq));
         }
 
         approveReq = JSON.parse(apiResp.data);
@@ -176,14 +206,7 @@ function process_key_pair_config(cfg_obj,key_config,ouKs,ksPassword) {
 
     //create tls secret
     print("Creating secret");
-    secret_info = key_config.create_data.secret_info;
-
-    if (secret_info == null) {
-        secret_info = {};
-        secret_info['type_of_secret'] = 'kubernetes.io/tls';
-        secret_info['cert_name'] = 'tls.crt';
-        secret_info['key_name'] = 'tls.key';
-    }
+    
 
     secret_to_create = {
         "apiVersion":"v1",
@@ -191,7 +214,10 @@ function process_key_pair_config(cfg_obj,key_config,ouKs,ksPassword) {
         "type":secret_info.type_of_secret,
         "metadata": {
             "name": key_config.name,
-            "namespace": target_ns
+            "namespace": target_ns,
+            "labels": {
+                "tremolo_operator_created":"true"
+            }
         },
         "data":{
             
@@ -210,8 +236,18 @@ function process_key_pair_config(cfg_obj,key_config,ouKs,ksPassword) {
     print("Posting secret");
     k8s.postWS('/api/v1/namespaces/' + target_ns + '/secrets',JSON.stringify(secret_to_create));
 
-    print("Storing to keystore");
-    CertUtils.saveX509ToKeystore(ouKs,ksPassword,key_config.name,x509data);
+    
+    if (key_config.import_into_ks == null || key_config.import_into_ks === "" || key_config.import_into_ks === "keypair") {
+        print("Storing to keystore");
+        CertUtils.saveX509ToKeystore(ouKs,ksPassword,key_config.name,x509data);
+    } else if (key_config.import_into_ks === "certificate") {
+        print("Storing just the certificate");
+        CertUtils.importCertificate(ouKs,ksPassword,key_config.name,x509data.getCertificate());
+    } else {
+        print("Not storing at all");
+    }
+    
+    
     print("Key '" + key_config.name + "' finished");
 
 
