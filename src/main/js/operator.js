@@ -256,6 +256,89 @@ function process_key_pair_config(cfg_obj,key_config,ouKs,ksPassword) {
 
 }
 
+function process_static_keys(ouKs,ksPassword) {
+    var static_keys = {};
+    //get the existing secret
+    secret_uri = "/api/v1/namespaces/" + k8s_namespace + "/secrets/" + k8s_obj.metadata.name + '-static-keys';
+    secret_response = k8s.callWS(secret_uri,"",-1);
+
+    if (secret_response.code == 200) {
+        print("Secret exists, deleting");
+        k8s.deleteWS(secret_uri);
+
+        secret_json = JSON.parse(secret_response.data);
+        for (var property in secret_json.data) {
+            if (secret_json.data.hasOwnProperty(property)) {
+                static_key = JSON.parse(new java.lang.String(java.util.Base64.getDecoder().decode(secret_json.data[property])));
+                static_keys[static_key.name] = static_key;
+                static_key['still_used'] = false;
+            }
+        }
+    }
+
+    for (var i=0;i<cfg_obj.key_store.static_keys.length;i++) {
+        static_key_config = cfg_obj.key_store.static_keys[i];
+        static_key_config_from_secret = static_keys[static_key_config.name];
+
+        if (static_key_config_from_secret == null) {
+            //the static key doesn't exist in the secret, create it
+            CertUtils.createKey(ouKs,static_key_config.name,ksPassword);
+            static_keys[static_key_config.name] = {
+                "name":static_key_config.name,
+                "version":1,
+                "key_data": CertUtils.exportKey(ouKs,static_key_config.name,ksPassword),
+                "still_used": true
+
+            };
+
+        } else if (static_key_config_from_secret.version != static_key_config.version) {
+            //exists, but needs to be updated
+            CertUtils.createKey(ouKs,static_key_config.name,ksPassword);
+            static_keys[static_key_config.name] = {
+                "name":static_key_config.name,
+                "version":static_key_config.version,
+                "key_data": CertUtils.exportKey(ouKs,static_key_config.name,ksPassword),
+                "still_used": true
+
+            };
+        } else  {
+            //import key from secret
+            static_key_config_from_secret.still_used = true;
+            CertUtils.storeKey(ouKs,static_key_config.name,ksPassword,static_key_config_from_secret.key_data);
+        }
+        
+
+    }
+
+    secret_to_create = {
+        "apiVersion":"v1",
+        "kind":"Secret",
+        "type":"Opaque",
+        "metadata": {
+            "name": k8s_obj.metadata.name + '-static-keys',
+            "namespace": k8s_namespace
+        },
+        "data":{
+            
+        }
+    };
+
+    for (var key_name in static_keys) {
+        if (static_keys.hasOwnProperty(key_name)) {
+            if (static_keys[key_name].still_used) {
+                secret_to_create.data[key_name] = java.util.Base64.getEncoder().encodeToString(JSON.stringify(static_keys[key_name]).getBytes("UTF-8"));
+            }
+        }
+    }
+
+    print("Posting secret");
+    k8s.postWS('/api/v1/namespaces/' + k8s_namespace + '/secrets',JSON.stringify(secret_to_create));
+
+
+    
+
+}
+
 //Called by controller
 function on_watch(k8s_event) {
     print("in js : "  + k8s_event);
@@ -276,8 +359,6 @@ function on_watch(k8s_event) {
         ouKs = Java.type("java.security.KeyStore").getInstance("PKCS12");
         ouKs.load(null,ksPassword.toCharArray());
 
-        use_k8s_cm = inProp['USE_K8S_CM'] == "true";
-
         print("Storing k8s certificate");
         ouKs.setCertificateEntry('k8s-master',k8s.getCertificate('k8s-master'));
 
@@ -296,6 +377,8 @@ function on_watch(k8s_event) {
             process_key_pair_config(cfg_obj,key_config,ouKs,ksPassword);
             print(i);
         }
+
+        process_static_keys(ouKs,ksPassword);
 
         print("Done");
 
