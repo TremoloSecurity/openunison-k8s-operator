@@ -39,6 +39,33 @@ spec:
               type: array
               items:
                 type: string
+            hosts:
+              type: array
+              items:
+                type: object
+                properties:
+                  names:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        env_var:
+                          type: string
+                  ingress_name: 
+                    type: string
+                  secret_name:
+                    type: string
+                  node_selectors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name: 
+                          type: string
+                        value:
+                          type: string
             non_secret_data:
               type: array
               items:
@@ -173,8 +200,6 @@ spec:
                                 type: integer
                               ca_cert:
                                 type: boolean
-                              target_namespace:
-                                type: string
                               secret_info:
                                 type: object
                                 properties:

@@ -2,11 +2,11 @@
 /*
  Create properties map from the non-secret portion of the CR
 */
-function props_from_crd(cr) {
+function props_from_crd() {
     props = {};
 
-    for (i=0;i<cr.non_secret_data.length;i++) {
-        props[cr.non_secret_data[i].name] = cr.non_secret_data[i].value;
+    for (i=0;i<cfg_obj.non_secret_data.length;i++) {
+        props[cfg_obj.non_secret_data[i].name] = cfg_obj.non_secret_data[i].value;
     }
 
     return props;
@@ -14,17 +14,35 @@ function props_from_crd(cr) {
 }
 
 /*
+  inject hosts into environment variables
+*/
+
+function hosts_to_props() {
+    print("Getting host variable names");
+    for (var i=0;i<cfg_obj.hosts.length;i++) {
+        print("Host  #" + i);
+        host = cfg_obj.hosts[i];
+        for (var j=0;j<host.names.length;j++) {
+            print("Name #" + j);
+            print(host.names[j].env_var);
+            print(host.names[j].name);
+            inProp[host.names[j].env_var] = host.names[j].name;
+        }
+    }
+}
+
+/*
   Updates properties with values from the source secret
 */
-function props_from_secret(cr,inProps) {
-    results = k8s.callWS("/api/v1/namespaces/" + k8s_namespace + "/secrets/" + cr.source_secret);
+function props_from_secret() {
+    results = k8s.callWS("/api/v1/namespaces/" + k8s_namespace + "/secrets/" + cfg_obj.source_secret);
     if (results.code == 200) {
         secret = JSON.parse(results.data);
-        for (i=0;i<cr.secret_data.length;i++) {
+        for (i=0;i<cfg_obj.secret_data.length;i++) {
             for (var property in secret.data) {
                 if (secret.data.hasOwnProperty(property)) {
-                    if (property === cr.secret_data[i]) {
-                        inProps[cr.secret_data[i]] = new java.lang.String(java.util.Base64.getDecoder().decode(secret.data[property])).trim();
+                    if (property === cfg_obj.secret_data[i]) {
+                        inProp[cfg_obj.secret_data[i]] = new java.lang.String(java.util.Base64.getDecoder().decode(secret.data[property])).trim();
                     }
                 }
             }
@@ -71,9 +89,16 @@ function process_key_pair_config(key_config) {
         target_ns = key_config.create_data.target_namespace;
     }
 
+    var secret_name = "";
+    if (key_config.tls_secret_name != null && key_config.tls_secret_name !== "") {
+        secret_name = key_config.tls_secret_name;
+    } else {
+        secret_name = key_config.name;
+    }
+
     //check if the secret already exists
     print("Checking if kubernetes secret exists")
-    secret_response = k8s.callWS("/api/v1/namespaces/" + target_ns + "/secrets/" + key_config.name,"",-1);
+    secret_response = k8s.callWS("/api/v1/namespaces/" + target_ns + "/secrets/" + secret_name,"",-1);
     secret_exists = false;
 
     if (secret_response.code == 200) {
@@ -86,8 +111,8 @@ function process_key_pair_config(key_config) {
                 print("Storing to keystore");
                 CertUtils.importKeyPairAndCert(ouKs,ksPassword,key_config.name,secret_json.data[secret_info.key_name],secret_json.data[secret_info.cert_name]);
             } else if (key_config.import_into_ks === "certificate") {
-                print("Storing just the certificate");
-                CertUtils.importCertificate(ouKs,ksPassword,key_config.name,secret_json.data[secret_info.cert_name]);
+                print("Storing just the certificate2");
+                CertUtils.importCertificate(ouKs,ksPassword,key_config.name,new java.lang.String(java.util.Base64.getDecoder().decode(secret_json.data[secret_info.cert_name])));
             } else {
                 print("Not storing at all");
             }
@@ -103,8 +128,8 @@ function process_key_pair_config(key_config) {
                     print("Storing to keystore");
                     CertUtils.importKeyPairAndCert(ouKs,ksPassword,key_config.name,secret_json.data[secret_info.key_name],secret_json.data[secret_info.cert_name]);
                 } else if (key_config.import_into_ks === "certificate") {
-                    print("Storing just the certificate");
-                    CertUtils.importCertificate(ouKs,ksPassword,key_config.name,secret_json.data[secret_info.cert_name]);
+                    print("Storing just the certificate3");
+                    CertUtils.importCertificate(ouKs,ksPassword,key_config.name,new java.lang.String(java.util.Base64.getDecoder().decode(secret_json.data[secret_info.cert_name])));
                 } else {
                     print("Not storing at all");
                 }
@@ -207,7 +232,7 @@ function process_key_pair_config(key_config) {
         "kind":"Secret",
         "type":secret_info.type_of_secret,
         "metadata": {
-            "name": key_config.name,
+            "name": secret_name,
             "namespace": target_ns,
             "labels": {
                 "tremolo_operator_created":"true"
@@ -224,7 +249,7 @@ function process_key_pair_config(key_config) {
 
     if (secret_exists) {
         print("Deleting existing secret");
-        k8s.deleteWS("/api/v1/namespaces/" + target_ns + "/secrets/" + key_config.name);
+        k8s.deleteWS("/api/v1/namespaces/" + target_ns + "/secrets/" + secret_name);
     }
 
     print("Posting secret");
@@ -235,7 +260,7 @@ function process_key_pair_config(key_config) {
         print("Storing to keystore");
         CertUtils.saveX509ToKeystore(ouKs,ksPassword,key_config.name,x509data);
     } else if (key_config.import_into_ks === "certificate") {
-        print("Storing just the certificate");
+        print("Storing just the certificate1");
         CertUtils.importCertificate(ouKs,ksPassword,key_config.name,x509data.getCertificate());
     } else {
         print("Not storing at all");
@@ -337,12 +362,12 @@ function process_static_keys() {
   Generate openunison secret
 */
 function generate_openunison_secret(event_json) {
-    k8s_obj = event_json['object'];
-    cfg_obj = k8s_obj['spec'];
-    inProp = props_from_crd(cfg_obj);
+    inProp = props_from_crd();
+    hosts_to_props();
+    print(inProp["OU_HOST"]);
     print(inProp["AD_BASE_DN"]);
-    props_from_secret(cfg_obj,inProp);
-    print("'" + inProp.unisonKeyStorePassword + "'");
+    props_from_secret();
+    print("'" + inProp.unisonKeystorePassword + "'");
 
     
 
@@ -367,6 +392,7 @@ function generate_openunison_secret(event_json) {
     for (var i=0;i<cfg_obj.key_store.key_pairs.keys.length;i++) {
         print(i);
         key_config = cfg_obj.key_store.key_pairs.keys[i];
+        key_config.name = script_val(key_config.name);
         process_key_pair_config(key_config);
         print(i);
     }
@@ -412,3 +438,5 @@ function generate_openunison_secret(event_json) {
 
     print("Done");
 }
+
+
