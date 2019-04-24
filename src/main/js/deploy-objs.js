@@ -153,7 +153,8 @@ function create_activemq() {
             "kind": "Service",
             "metadata": {
                 "labels": {
-                    "app": "amq"
+                    "app": "amq",
+                    "operated-by": "openunison-operator"
                 },
                 "name": "amq",
                 "namespace": k8s_namespace
@@ -263,7 +264,8 @@ function create_static_objects() {
         "kind": "Service",
         "metadata": {
             "labels": {
-                "app": "openunison-" + k8s_obj.metadata.name
+                "app": "openunison-" + k8s_obj.metadata.name,
+                "operated-by": "openunison-operator"
             },
             "name": "openunison-" + k8s_obj.metadata.name,
             "namespace": k8s_namespace

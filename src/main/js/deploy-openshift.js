@@ -78,7 +78,8 @@ function deploy_openshift_objects() {
         "metadata": {
             "name": "openunison-" + k8s_obj.metadata.name,
             "labels": {
-                "application": "openunison-" + k8s_obj.metadata.name
+                "application": "openunison-" + k8s_obj.metadata.name,
+                "operated-by": "openunison-operator"
             }
         }
     };
@@ -91,7 +92,8 @@ function deploy_openshift_objects() {
         "metadata": {
             "name": "openunison-" + k8s_obj.metadata.name,
             "labels": {
-                "application": "openunison"
+                "application": "openunison",
+                "operated-by": "openunison-operator"
             }
         },
         "spec": {
@@ -145,7 +147,8 @@ function deploy_openshift_objects() {
         "metadata": {
             "name": "openunison-" + k8s_obj.metadata.name,
             "labels": {
-                "application": "openunison-" + k8s_obj.metadata.name
+                "application": "openunison-" + k8s_obj.metadata.name,
+                "operated-by": "openunison-operator"
             }
         },
         "spec": {
@@ -183,7 +186,8 @@ function deploy_openshift_objects() {
                     "name": "openunison-" + k8s_obj.metadata.name,
                     "labels": {
                         "deploymentConfig": "openunison-" + k8s_obj.metadata.name,
-                        "application": "openunison-" + k8s_obj.metadata.name
+                        "application": "openunison-" + k8s_obj.metadata.name,
+                        "operated-by": "openunison-operator"
                     }
                 },
                 "spec": {
@@ -266,7 +270,8 @@ function deploy_openshift_objects() {
                 "metadata": {
                     "name": "openunison-https-" + k8s_obj.metadata.name + "-" + cfg_obj.hosts[i].ingress_name,
                     "labels": {
-                        "application": "openunison-" + k8s_obj.metadata.name
+                        "application": "openunison-" + k8s_obj.metadata.name,
+                        "operated-by": "openunison-operator"
                     },
                     "annotations": {
                         "description": "Route for OpenUnison's https service."
@@ -332,7 +337,8 @@ function deploy_amq_openshift() {
         "kind": "DeploymentConfig",
         "metadata": {
            "labels": {
-              "app": "amq-" + k8s_obj.metadata.name
+              "app": "amq-" + k8s_obj.metadata.name,
+              "operated-by": "openunison-operator"
            },
            "name": "amq-" + k8s_obj.metadata.name,
            "namespace": k8s_namespace
@@ -367,7 +373,8 @@ function deploy_amq_openshift() {
               "metadata": {
                  "creationTimestamp": null,
                  "labels": {
-                    "app": "amq-" + k8s_obj.metadata.name
+                    "app": "amq-" + k8s_obj.metadata.name,
+                    "operated-by": "openunison-operator"
                  }
               },
               "spec": {
@@ -625,7 +632,8 @@ function update_openshift_deploymentconfig() {
                         "metadata": {
                             "name": "openunison-https-" + k8s_obj.metadata.name + "-" + cfg_obj.hosts[i].ingress_name,
                             "labels": {
-                                "application": "openunison-" + k8s_obj.metadata.name
+                                "application": "openunison-" + k8s_obj.metadata.name,
+                                "operated-by": "openunison-operator"
                             },
                             "annotations": {
                                 "description": "Route for OpenUnison's https service."

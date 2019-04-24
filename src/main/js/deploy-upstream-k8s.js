@@ -91,7 +91,8 @@ function create_k8s_deployment() {
         "kind": "Deployment",
         "metadata": {
             "labels": {
-                "app": "openunison-" + k8s_obj.metadata.name
+                "app": "openunison-" + k8s_obj.metadata.name,
+                "operated-by": "openunison-operator"
             },
             "name": "openunison-" + k8s_obj.metadata.name,
             "namespace": k8s_namespace
@@ -116,7 +117,8 @@ function create_k8s_deployment() {
                 "metadata": {
                     "creationTimestamp": null,
                     "labels": {
-                        "app": "openunison-" + k8s_obj.metadata.name
+                        "app": "openunison-" + k8s_obj.metadata.name,
+                        "operated-by": "openunison-operator"
                     }
                 },
                 "spec": {
