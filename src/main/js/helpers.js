@@ -54,6 +54,19 @@ function props_from_secret() {
     }
 }
 
+
+/*
+    Process initialization SQL
+*/
+function proc_sql() {
+    //load  sql
+    quartzSQL = cfg_obj.run_sql;
+    print("parsing sql");
+    parsedSQL = com.tremolosecurity.kubernetes.artifacts.util.DbUtils.parseSQL(quartzSQL);
+    print("runnins sql");
+    com.tremolosecurity.kubernetes.artifacts.util.DbUtils.runSQL(parsedSQL,inProp["OU_JDBC_DRIVER"],inProp["OU_JDBC_URL"],inProp["OU_JDBC_USER"],inProp["OU_JDBC_PASSWORD"]);
+}
+
 /*
     checks if a value is a "script" 
 */
@@ -164,6 +177,7 @@ function process_key_pair_config(key_config) {
     }
 
 
+
     x509data = CertUtils.createCertificate(certInfo);
 
     if (key_config.create_data.sign_by_k8s_ca) {
@@ -223,6 +237,8 @@ function process_key_pair_config(key_config) {
 
     }
 
+    
+    
     //create tls secret
     print("Creating secret");
     
@@ -358,6 +374,105 @@ function process_static_keys() {
 
 }
 
+function import_saml_idps() {
+    var idps = cfg_obj.saml_remote_idp;
+
+    print("Remote Identity Providers : " + idps);
+
+    if (idps == null) {
+        print("No IdPs, stopping");
+        return;
+    }
+
+    for (var i=0;i<idps.length;i++) {
+        var remote_idp = idps[i];
+
+        var xml_metadata = null;
+        if (remote_idp.source.url != null && remote_idp.source.url !== "") {
+            //need to work this one out
+        } else {
+            xml_metadata = remote_idp.source.xml;
+        }
+
+        dbFactory = javax.xml.parsers.DocumentBuilderFactory.newInstance();
+        dBuilder = dbFactory.newDocumentBuilder();
+        doc = dBuilder.parse(new java.io.ByteArrayInputStream(xml_metadata.getBytes("UTF-8")));
+
+        //get entity id
+        entityId = doc.getElementsByTagName("EntityDescriptor").item(0).getAttribute("entityID");
+
+        idp = doc.getElementsByTagName("IDPSSODescriptor").item(0);
+
+        singleLogoutURL = "";
+        ssoGetURL = "";
+        ssoPostURL = "";
+        sig_certs = [];
+        sig_cert_to_use = ""
+
+        current_cert_choice = null;
+
+
+        //single logout
+        slos = idp.getElementsByTagName("SingleLogoutService");
+
+        for (i = 0;i<slos.getLength();i++) {
+            slo = slos.item(i);
+            if (slo.getAttribute("Binding").equalsIgnoreCase("urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect")) {
+                singleLogoutURL = slo.getAttribute("Location");
+            }
+        }
+
+        //single sign on
+        ssos = idp.getElementsByTagName("SingleSignOnService");
+
+        for (i = 0;i<ssos.getLength();i++) {
+            sso = ssos.item(i);
+            if (sso.getAttribute("Binding").equalsIgnoreCase("urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect")) {
+                ssoGetURL = sso.getAttribute("Location");
+            } else if (sso.getAttribute("Binding").equalsIgnoreCase("urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST")) {
+                ssoPostURL = sso.getAttribute("Location");
+            }
+        }
+
+        keys = idp.getElementsByTagName("KeyDescriptor");
+
+        for (i=0;i<keys.getLength();i++) {
+            key = keys.item(i);
+
+            if (key.getAttribute("use").equalsIgnoreCase("signing")) {
+                sig_cert = key.getElementsByTagName("KeyInfo").item(0).getElementsByTagName("X509Data").item(0).getElementsByTagName("X509Certificate").item(0).getTextContent();
+                sig_certs.push(sig_cert);
+            }
+        }
+
+        if (sig_certs.length == 1) {
+            current_cert_choice = com.tremolosecurity.kubernetes.artifacts.util.CertUtils.string2cert(sig_certs[0]);
+        } else {
+            for (i=0;i<sig_certs.length;i++) {
+                current_cert = com.tremolosecurity.kubernetes.artifacts.util.CertUtils.string2cert(sig_certs[i]);
+                if (current_cert_choice == null) {
+                    current_cert_choice = current_cert;
+                } else {
+                    if (current_cert_choice.getNotAfter().compareTo(current_cert.getNotAfter())  < 0  ) {
+                        current_cert_choice = current_cert;
+                    }
+                }
+            }
+            
+        }
+
+
+        inProp[remote_idp.mapping.entity_id] = entityId;
+        inProp[remote_idp.mapping.post_url] = ssoPostURL;
+        inProp[remote_idp.mapping.redirect_url] = ssoGetURL;
+        inProp[remote_idp.mapping.logout_url] = singleLogoutURL;
+
+
+        ouKs.setCertificateEntry(remote_idp.mapping.signing_cert_alias,current_cert_choice);
+
+    }
+}
+
 /*
   Generate openunison secret
 */
@@ -367,7 +482,11 @@ function generate_openunison_secret(event_json) {
     print(inProp["OU_HOST"]);
     print(inProp["AD_BASE_DN"]);
     props_from_secret();
-    print("'" + inProp.unisonKeystorePassword + "'");
+    
+    //create the ip mask
+    myIp = com.tremolosecurity.kubernetes.artifacts.util.NetUtil.whatsMyIP();
+    mask = myIp.substring(0,myIp.indexOf("."));
+    inProp["OU_QUARTZ_MASK"] = mask;
 
     
 
@@ -378,7 +497,7 @@ function generate_openunison_secret(event_json) {
     ouKs.load(null,ksPassword.toCharArray());
 
     print("Storing k8s certificate");
-    ouKs.setCertificateEntry('k8s-master',k8s.getCertificate('k8s-master'));
+    CertUtils.importCertificate(ouKs,ksPassword,'k8s-master',k8s.getCaCert());
 
     print("Storing trusted certificates");
     for (i=0;i<cfg_obj.key_store.trusted_certificates.length;i++) {
@@ -399,20 +518,67 @@ function generate_openunison_secret(event_json) {
 
     process_static_keys();
 
+    import_saml_idps();
+
+
+    string_for_hash = java.util.Base64.getEncoder().encodeToString(k8s.json2yaml(JSON.stringify(cfg_obj.openunison_network_configuration) ).getBytes("UTF-8")  ) + k8s.encodeMap(inProp);
+    bytes_for_hash = string_for_hash.getBytes("UTF-8");
+
+    digest = java.security.MessageDigest.getInstance("SHA-256");
+    digest.update(bytes_for_hash,0,bytes_for_hash.length);
+    digest_bytes = digest.digest();
+    digest_base64 = java.util.Base64.getEncoder().encodeToString(digest_bytes);
+
+    print("DIGEST : " + digest_base64);
+    
+
+
+
     //check to see if the secret already exists
     existing_secret = k8s.callWS('/api/v1/namespaces/' + k8s_namespace + '/secrets/' + cfg_obj.dest_secret,"",-1);
     if (existing_secret.code == 200) {
-        //patch the existing secret
-        secret_patch = {
-            "data":{
-                "openunison.yaml": java.util.Base64.getEncoder().encodeToString(k8s.json2yaml(JSON.stringify(cfg_obj.openunison_network_configuration) ).getBytes("UTF-8")  ),
-                "ou.env" : k8s.encodeMap(inProp),
-                "unisonKeyStore.p12" : CertUtils.encodeKeyStore(ouKs,ksPassword)
-                
-            }
-        };
+        var existing_secret_data = JSON.parse(existing_secret.data);
+        var existing_ks_b64 = existing_secret_data.data["unisonKeyStore.p12"];
 
-        k8s.patchWS('/api/v1/namespaces/' + k8s_namespace + '/secrets/' + cfg_obj.dest_secret,JSON.stringify(secret_patch));
+        var keystores_same = false;
+        var existing_ks = CertUtils.decodeKeystore(existing_ks_b64,ksPassword);
+
+        if (existing_ks != null) {
+            keystores_same = CertUtils.keystoresEqual(existing_ks,ouKs,ksPassword);
+        }
+
+        digest_from_secret = null;
+        
+        if (existing_secret_data.metadata["annotations"] != null) {
+            digest_from_secret = existing_secret_data.metadata.annotations["tremolo.io/digest"];
+        }
+
+        secret_data_changed = (digest_from_secret == null || digest_from_secret !== digest_base64) || ! keystores_same;
+
+        
+
+
+        
+        if (secret_data_changed) {
+            //patch the existing secret
+            secret_patch = {
+                "metadata" : {
+                    "annotations" : {
+                        "tremolo.io/digest": digest_base64
+                    }
+                },
+                "data":{
+                    "openunison.yaml": java.util.Base64.getEncoder().encodeToString(k8s.json2yaml(JSON.stringify(cfg_obj.openunison_network_configuration) ).getBytes("UTF-8")  ),
+                    "ou.env" : k8s.encodeMap(inProp),
+                    "unisonKeyStore.p12" : CertUtils.encodeKeyStore(ouKs,ksPassword)
+                    
+                }
+            };
+
+            k8s.patchWS('/api/v1/namespaces/' + k8s_namespace + '/secrets/' + cfg_obj.dest_secret,JSON.stringify(secret_patch));
+        } else {
+            print("No secret data has changed, not updating the secret");
+        }
 
     } else {
         //create a new secret
@@ -423,6 +589,9 @@ function generate_openunison_secret(event_json) {
             "metadata": {
                 "name": cfg_obj.dest_secret,
                 "namespace": k8s_namespace,
+                "annotations" : {
+                    "tremolo.io/digest": digest_base64
+                }
             },
             "data":{
                 "openunison.yaml": java.util.Base64.getEncoder().encodeToString(k8s.json2yaml(JSON.stringify(cfg_obj.openunison_network_configuration) ).getBytes("UTF-8")  ),

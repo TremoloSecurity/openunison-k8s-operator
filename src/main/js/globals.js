@@ -5,3 +5,6 @@ var cfg_obj = {};
 var k8s_obj = {};
 var ouKS;
 var ksPassword;
+var secret_data_changed = true;
+var amq_secrets_changed = true;
+var amq_env_secrets_changed = true;
