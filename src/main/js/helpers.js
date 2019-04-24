@@ -49,8 +49,9 @@ function props_from_secret() {
 
            
         }
+        return true;
     } else {
-        return;
+        return false;
     }
 }
 
@@ -479,9 +480,9 @@ function import_saml_idps() {
 function generate_openunison_secret(event_json) {
     inProp = props_from_crd();
     hosts_to_props();
-    print(inProp["OU_HOST"]);
-    print(inProp["AD_BASE_DN"]);
-    props_from_secret();
+    if (! props_from_secret()) {
+        return false;
+    }
     
     //create the ip mask
     myIp = com.tremolosecurity.kubernetes.artifacts.util.NetUtil.whatsMyIP();
@@ -606,6 +607,7 @@ function generate_openunison_secret(event_json) {
     }
 
     print("Done");
+    return true;
 }
 
 
