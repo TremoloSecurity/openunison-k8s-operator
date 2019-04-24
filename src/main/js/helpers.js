@@ -252,7 +252,8 @@ function process_key_pair_config(key_config) {
             "name": secret_name,
             "namespace": target_ns,
             "labels": {
-                "tremolo_operator_created":"true"
+                "tremolo_operator_created":"true",
+                "operated-by": "openunison-operator"
             }
         },
         "data":{
