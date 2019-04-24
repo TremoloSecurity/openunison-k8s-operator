@@ -84,105 +84,8 @@ function create_ingress_objects() {
     }
 }
 
-function create_static_objects() {
-    obj = {"apiVersion":"v1","kind":"ServiceAccount","metadata":{"creationTimestamp":null,"name":"openunison-" + k8s_obj.metadata.name}};
-    k8s.postWS('/api/v1/namespaces/' + k8s_namespace + '/serviceaccounts',JSON.stringify(obj));
 
-    obj = {
-        "kind": "Role",
-        "apiVersion": "rbac.authorization.k8s.io/v1",
-        "metadata": {
-            "namespace": k8s_namespace,
-            "name": "oidc-user-sessions-" + k8s_obj.metadata.name
-        },
-        "rules": [
-            {
-                "apiGroups": [
-                    "openunison.tremolo.io"
-                ],
-                "resources": [
-                    "oidc-sessions",
-                    "users"
-                ],
-                "verbs": [
-                    "*"
-                ]
-            }
-        ]
-    };
-
-    k8s.postWS('/apis/rbac.authorization.k8s.io/v1/namespaces/' + k8s_namespace + '/roles',JSON.stringify(obj));
-
-    obj = {
-        "kind": "RoleBinding",
-        "apiVersion": "rbac.authorization.k8s.io/v1",
-        "metadata": {
-            "name": "oidc-user-sessions-" + k8s_obj.metadata.name,
-            "namespace": k8s_namespace
-        },
-        "subjects": [
-            {
-                "kind": "ServiceAccount",
-                "name": "openunison-" + k8s_obj.metadata.name,
-                "namespace": k8s_namespace
-            }
-        ],
-        "roleRef": {
-            "kind": "Role",
-            "name": "oidc-user-sessions-" + k8s_obj.metadata.name,
-            "apiGroup": "rbac.authorization.k8s.io"
-        }
-    };
-
-    k8s.postWS('/apis/rbac.authorization.k8s.io/v1/namespaces/' + k8s_namespace + '/rolebindings',JSON.stringify(obj))
-
-    create_ingress_objects();
-
-    
-
-    obj = {
-        "apiVersion": "v1",
-        "kind": "Service",
-        "metadata": {
-            "labels": {
-                "app": "openunison-" + k8s_obj.metadata.name
-            },
-            "name": "openunison-" + k8s_obj.metadata.name,
-            "namespace": k8s_namespace
-        },
-        "spec": {
-            "ports": [
-                {
-                    "name": "openunison-secure-" + k8s_obj.metadata.name,
-                    "port": 443,
-                    "protocol": "TCP",
-                    "targetPort": 8443
-                },
-                {
-                    "name": "openunison-insecure-" + k8s_obj.metadata.name,
-                    "port": 80,
-                    "protocol": "TCP",
-                    "targetPort": 8080
-                }
-            ],
-            "selector": {
-                "app": "openunison-" + k8s_obj.metadata.name
-            },
-            "sessionAffinity": "ClientIP",
-            "sessionAffinityConfig": {
-                "clientIP": {
-                    "timeoutSeconds": 10800
-                }
-            },
-            "type": "ClusterIP"
-        },
-        "status": {
-            "loadBalancer": {}
-        }
-    };
-
-    k8s.postWS('/api/v1/namespaces/' + k8s_namespace + '/services',JSON.stringify(obj));
-
+function create_k8s_deployment() {
     obj = {
         "apiVersion": "apps/v1",
         "kind": "Deployment",
@@ -303,7 +206,6 @@ function create_static_objects() {
     k8s.postWS('/apis/apps/v1/namespaces/' + k8s_namespace + '/deployments',JSON.stringify(obj));
 }
 
-
 /*
   Uopdate the deployment based on the CRD
 */
@@ -341,6 +243,8 @@ function update_k8s_deployment() {
         }
 
         k8s.patchWS('/apis/apps/v1/namespaces/' + k8s_namespace + "/deployments/openunison-" + k8s_obj.metadata.name,JSON.stringify(patch));
+
+        
         
     } else {
         print("No deployment found, running create");
@@ -350,22 +254,63 @@ function update_k8s_deployment() {
 }
 
 /*
+    Delete the activemq resources
+*/
+function delete_activemq() {
+    k8s.deleteWS('/api/v1/namespaces/' + k8s_namespace + '/secrets/amq-secrets-' + k8s_obj.metadata.name);
+    k8s.deleteWS('/api/v1/namespaces/' + k8s_namespace + '/secrets/amq-env-secrets-' + k8s_obj.metadata.name);
+    k8s.deleteWS('/api/v1/namespaces/' + k8s_namespace + '/services/amq');
+
+    if (k8s.isOpenShift()) {
+        k8s.deleteWS("/apis/image.openshift.io/v1/namespaces/" + k8s_namespace + "/imagestreams/amq-" + k8s_obj.metadata.name);
+        k8s.deleteWS('/apis/apps.openshift.io/v1/namespaces/' + k8s_namespace + '/deploymentconfigs/amq-' + k8s_obj.metadata.name);
+    } else {
+
+    }
+}
+
+/*
 Deletes objects created by the operator
 */
 
 function delete_k8s_deployment() {
-    k8s.deleteWS('/apis/apps/v1/namespaces/' + k8s_namespace + "/deployments/openunison-" + k8s_obj.metadata.name);
+    
     k8s.deleteWS('/api/v1/namespaces/' + k8s_namespace + '/services/openunison-' + k8s_obj.metadata.name);
     k8s.deleteWS('/apis/rbac.authorization.k8s.io/v1/namespaces/' + k8s_namespace + '/rolebindings/oidc-user-sessions-' + k8s_obj.metadata.name);
     k8s.deleteWS('/apis/rbac.authorization.k8s.io/v1/namespaces/' + k8s_namespace + '/roles/oidc-user-sessions-' + k8s_obj.metadata.name);
     k8s.deleteWS('/api/v1/namespaces/' + k8s_namespace + '/serviceaccounts/openunison-' + k8s_obj.metadata.name);
 
-    for (var i=0;i<cfg_obj.hosts.length;i++) {
-        k8s.deleteWS('/apis/extensions/v1beta1/namespaces/' + k8s_namespace + '/ingresses/' + cfg_obj.hosts[i].ingress_name);
+    
+    if (k8s.isOpenShift()) {
+        k8s.deleteWS('/apis/apps.openshift.io/v1/namespaces/' + k8s_namespace + "/deploymentconfigs/openunison-" + k8s_obj.metadata.name);
+        k8s.deleteWS('/apis/build.openshift.io/v1/namespaces/' + k8s_namespace + "/buildconfigs/openunison-" + k8s_obj.metadata.name);
+        k8s.deleteWS('/apis/image.openshift.io/v1/namespaces/' + k8s_namespace + "/imagestreams/openunison-" + k8s_obj.metadata.name);
+        k8s.deleteWS('/apis/image.openshift.io/v1/namespaces/' + k8s_namespace + "/imagestreams/openunison-s2i-" + k8s_obj.metadata.name);
+        k8s.deleteWS('/api/v1/namespaces/' + k8s_namespace + "/secrets/redhat-registry-" + k8s_obj.metadata.name);
+
+        for (var i=0;i<cfg_obj.hosts.length;i++) {
+            k8s.deleteWS('/apis/route.openshift.io/v1/namespaces/' + k8s_namespace + '/routes/openunison-https-' + k8s_obj.metadata.name + "-" + cfg_obj.hosts[i].ingress_name);
+        }
+
+    } else {
+        k8s.deleteWS('/apis/apps/v1/namespaces/' + k8s_namespace + "/deployments/openunison-" + k8s_obj.metadata.name);
+        for (var i=0;i<cfg_obj.hosts.length;i++) {
+            k8s.deleteWS('/apis/extensions/v1beta1/namespaces/' + k8s_namespace + '/ingresses/' + cfg_obj.hosts[i].ingress_name);
+        }
     }
+
+
+
 
     k8s.deleteWS('/api/v1/namespaces/' + k8s_namespace + '/secrets/' + cfg_obj.dest_secret);
     k8s.deleteWS('/api/v1/namespaces/' + k8s_namespace + '/secrets/' + k8s_obj.metadata.name + '-static-keys');
+
+
+    if (cfg_obj.enable_activemq) {
+        delete_activemq();
+
+    }
+
 
     print("checking keys");
     for (var i=0;i<cfg_obj.key_store.key_pairs.keys.length;i++) {

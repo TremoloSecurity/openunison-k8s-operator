@@ -1,0 +1,40 @@
+FROM registry.access.redhat.com/ubi7-dev-preview/ubi:latest
+
+MAINTAINER Tremolo Security, Inc. - Docker <docker@tremolosecurity.com>
+
+ENV BUILDER_VERSION=1.0 \
+    JDK_VERSION=1.8.0  \
+    OPENUNISON_OPERATOR_VERSION=1.0.0 
+
+LABEL name="OpenUnison Operator" \
+      vendor="Tremolo Security, Inc." \
+      version="1.0.0" \
+      release="20190411" \
+      url="https://www.tremolosecurity.com/myvirtualdirectory/" \
+      summary="OpenUnison operator image" \
+      description="OpenUnison is an LDAP virtual directory and LDAP proxy, this image is the operator used to manage its deployment" \
+      io.k8s.description="OpenUnison Operator" \
+      io.k8s.display-name="OpenUnison Operator" \
+      io.openshift.expose-services="" \
+      io.openshift.tags="identity management,sso,user provisioning,devops,saml,openid connect" 
+
+
+RUN yum -y install curl java-1.8.0-openjdk-headless.x86_64 wget unzip;yum -y upgrade;yum clean all && \
+    groupadd -r openunison -g 433 && \
+    mkdir /usr/local/openunison && \
+    useradd -u 431 -r -g openunison -d /usr/local/openunison -s /sbin/nologin -c "OpenUnison Operator image user" openunison && \
+    curl https://nexus.tremolo.io/repository/betas/com/tremolosecurity/kubernetes/javascript-operator/$OPENUNISON_OPERATOR_VERSION/javascript-operator-$OPENUNISON_OPERATOR_VERSION.jar -o /usr/local/openunison/javascript-operator.jar && \
+    mkdir /licenses && \
+    rm -rf /var/cache/yum
+
+ADD src/main/js /usr/local/openunison/js
+
+COPY LICENSE /licenses
+
+RUN chown -R openunison:openunison /usr/local/openunison 
+
+
+USER 431
+
+CMD ["/usr/bin/java", "-jar", "/usr/local/openunison/javascript-operator.jar"]
+

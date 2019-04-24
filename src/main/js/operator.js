@@ -6,14 +6,27 @@ function on_watch(k8s_event) {
     cfg_obj = k8s_obj['spec'];
     
     if (event_json["type"] === "ADDED") {
+
         generate_openunison_secret(event_json);
+        
+        if (cfg_obj.run_sql != null) {
+            proc_sql();
+        }
+        
+        
         create_static_objects();
 
         
 
     } else if (event_json["type"] === "MODIFIED") {
         generate_openunison_secret(event_json);
-        update_k8s_deployment();
+
+        if (k8s.isOpenShift()) {
+            update_openshift_deploymentconfig();
+        } else {
+            update_k8s_deployment();
+        }
+        
 
     } else if (event_json["type"] === "DELETED") {
         delete_k8s_deployment();

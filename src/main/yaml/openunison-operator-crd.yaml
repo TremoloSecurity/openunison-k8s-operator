@@ -39,6 +39,20 @@ spec:
               type: array
               items:
                 type: string
+            openshift:
+              type: object
+              properties:
+                git:
+                  type: object
+                  properties:
+                    repo:
+                      type: string
+                    branch: 
+                      type: string
+                    dir:
+                      type: string
+                builder_image:
+                  type: string
             hosts:
               type: array
               items:
@@ -135,6 +149,35 @@ spec:
                         type: string
                 redirect_to_context_root:
                   type: boolean
+            saml_remote_idp:
+              type: array
+              items:
+                type: object
+                properties:
+                  source:
+                    type: object
+                    properties:
+                      url:
+                        type: string
+                      xml:
+                        type: string
+                  mapping:
+                    type: object
+                    properties:
+                      entity_id:
+                        type: string
+                      post_url:
+                        type: string
+                      redirect_url:
+                        type: string
+                      logout_url:
+                        type: string
+                      signing_cert_alis:
+                        type: string
+                      encryption_cert_alias:
+                        type: string
+            run_sql:
+              type: string
             key_store:
               type: object
               properties:
