@@ -15,6 +15,9 @@ function on_watch(k8s_event) {
             
             
             create_static_objects();
+            return null;
+        } else {
+            return "Unable to generate secrets, please check the logs";
         }
 
         
@@ -27,9 +30,12 @@ function on_watch(k8s_event) {
             } else {
                 update_k8s_deployment();
             }
+        } else {
+            return "Unable to generate secrets, please check the logs";
         }
 
     } else if (event_json["type"] === "DELETED") {
         delete_k8s_deployment();
+        return null;
     }
 }
