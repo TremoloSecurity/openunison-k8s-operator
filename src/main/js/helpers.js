@@ -73,10 +73,7 @@ function proc_sql() {
 */
 function script_val(cfg_option) {
     cfg_option_val = cfg_option;
-    if (cfg_option_val.startsWith('${')) {
-        cfg_option_val_script = cfg_option_val.substring(2,cfg_option_val.length - 1);
-        cfg_option_val = js.eval(cfg_option_val_script);
-    }
+    
 
     return cfg_option_val;
 }
@@ -167,7 +164,7 @@ function process_key_pair_config(key_config) {
     certInfo["size"] = key_config.create_data.key_size;
 
     //figure out the server name/cn and subject alternative names
-    server_name = script_val(key_config.create_data.server_name);
+    server_name = key_config.create_data.server_name;
     certInfo["serverName"] = server_name;
 
     if (key_config.create_data.subject_alternative_names != null && key_config.create_data.subject_alternative_names.length > 0) {
