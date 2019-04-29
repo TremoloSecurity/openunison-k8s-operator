@@ -35,7 +35,7 @@ function hosts_to_props() {
   Updates properties with values from the source secret
 */
 function props_from_secret() {
-    results = k8s.callWS("/api/v1/namespaces/" + k8s_namespace + "/secrets/" + cfg_obj.source_secret);
+    results = k8s.callWS("/api/v1/namespaces/" + k8s_namespace + "/secrets/" + cfg_obj.source_secret,"",-1);
     if (results.code == 200) {
         secret = JSON.parse(results.data);
         for (i=0;i<cfg_obj.secret_data.length;i++) {
