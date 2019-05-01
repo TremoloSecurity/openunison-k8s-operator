@@ -27,6 +27,7 @@ rules:
   - buildconfigs
   - deploymentconfigs
   - openunisons
+  - openunisons/status
   - pods
   - deployments
   - secrets
