@@ -383,12 +383,16 @@ function import_saml_idps() {
         return;
     }
 
+    cert_fingerprints = {};
+
     for (var i=0;i<idps.length;i++) {
         var remote_idp = idps[i];
 
         var xml_metadata = null;
         if (remote_idp.source.url != null && remote_idp.source.url !== "") {
-            //need to work this one out
+            print("Downloading metadata from : " + remote_idp.source.url + "'");
+            xml_metadata = NetUtil.downloadFile(remote_idp.source.url);
+            print("Downloaded");
         } else {
             xml_metadata = remote_idp.source.xml;
         }
@@ -466,10 +470,22 @@ function import_saml_idps() {
         inProp[remote_idp.mapping.redirect_url] = ssoGetURL;
         inProp[remote_idp.mapping.logout_url] = singleLogoutURL;
 
+        
 
         ouKs.setCertificateEntry(remote_idp.mapping.signing_cert_alias,current_cert_choice);
 
+        digest = java.security.MessageDigest.getInstance("SHA-256");
+        digest.update(current_cert_choice.getEncoded(),0,current_cert_choice.getEncoded().length);
+        digest_bytes = digest.digest();
+        digest_base64 = java.util.Base64.getEncoder().encodeToString(digest_bytes);
+
+        cert_fingerprints[entityId] = digest_base64;
+
     }
+
+    print("Saving fingerprints");
+    k8s.getAdditionalStatuses().put("idpCertificateFingerprints",cert_fingerprints);
+    print(k8s.getAdditionalStatuses());
 }
 
 /*
