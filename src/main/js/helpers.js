@@ -9,7 +9,7 @@ function props_from_crd() {
         props[cfg_obj.non_secret_data[i].name] = cfg_obj.non_secret_data[i].value;
     }
 
-    props["K8S_SELF_LINK"] = k8s_obj.metaData.selfLink;
+    props["K8S_SELF_LINK"] = k8s_obj.metadata.selfLink;
 
     return props;
 
