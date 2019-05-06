@@ -1,4 +1,4 @@
-#OpenUnison Operator for Kubernetes and OpenShift
+# OpenUnison Operator for Kubernetes and OpenShift
 
 The OpenUnison operator provides an operations automation mechanism for OpenUnison instances running on Kubernetes and OpenShift.  The operator will generate the secrets and objects needed to run OpenUnison:
 
