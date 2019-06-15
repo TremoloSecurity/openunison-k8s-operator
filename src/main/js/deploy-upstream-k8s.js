@@ -103,7 +103,7 @@ function create_k8s_deployment() {
             "revisionHistoryLimit": 10,
             "selector": {
                 "matchLabels": {
-                    "app": "openunison-" + k8s_obj.metadata.name
+                    "application": "openunison-" + k8s_obj.metadata.name
                 }
             },
             "strategy": {
@@ -117,7 +117,7 @@ function create_k8s_deployment() {
                 "metadata": {
                     "creationTimestamp": null,
                     "labels": {
-                        "app": "openunison-" + k8s_obj.metadata.name,
+                        "application": "openunison-" + k8s_obj.metadata.name,
                         "operated-by": "openunison-operator"
                     }
                 },
@@ -246,7 +246,51 @@ function update_k8s_deployment() {
 
         k8s.patchWS('/apis/apps/v1/namespaces/' + k8s_namespace + "/deployments/openunison-" + k8s_obj.metadata.name,JSON.stringify(patch));
 
-        
+        if (cfg_obj.enable_activemq) {
+            deployment_info = k8s.callWS('/apis/apps/v1/namespaces/' + k8s_namespace + "/deployments/amq-" + k8s_obj.metadata.name,"",-1);
+            if (deployment_info.code == 200) {
+                generate_amq_secrets();
+
+                deployment = JSON.parse(deployment_info.data);
+
+                update_image = deployment.spec.template.spec.containers[0].image != cfg_obj.activemq_image;
+
+
+                if (! update_image && (amq_secrets_changed || amq_env_secrets_changed)) {
+                    
+
+
+                    patch = {
+                        "spec" : {
+                            "template" : deployment.spec.template                
+                        }
+                    };
+
+                    if (patch.spec.template.metadata.annotations == null) {
+                        patch.spec.template.metadata.annotations = {};
+                    }
+                    patch.spec.template.metadata.annotations["tremolo.io/update"] = java.util.UUID.randomUUID().toString();
+
+                    k8s.patchWS('/apis/apps/v1/namespaces/' + k8s_namespace + "/deployments/amq-" + k8s_obj.metadata.name,JSON.stringify(patch));
+                } else if (update_image) {
+                    patch = {
+                        "spec" : {
+                            "template" : deployment.spec.template                
+                        }
+                    };
+
+                    patch.spec.template.spec.containers[0].image = cfg_obj.activemq_image;
+                    k8s.patchWS('/apis/apps/v1/namespaces/' + k8s_namespace + "/deployments/amq-" + k8s_obj.metadata.name,JSON.stringify(patch));
+                }
+
+            } else {
+                //deploy activemq
+                create_activemq();
+            }
+        } else {
+            //delete everything activemq
+            delete_activemq();
+        }
         
     } else {
         print("No deployment found, running create");
@@ -267,7 +311,7 @@ function delete_activemq() {
         k8s.deleteWS("/apis/image.openshift.io/v1/namespaces/" + k8s_namespace + "/imagestreams/amq-" + k8s_obj.metadata.name);
         k8s.deleteWS('/apis/apps.openshift.io/v1/namespaces/' + k8s_namespace + '/deploymentconfigs/amq-' + k8s_obj.metadata.name);
     } else {
-
+        k8s.deleteWS('/apis/apps/v1/namespaces/' + k8s_namespace + '/deployments/amq-' + k8s_obj.metadata.name);
     }
 }
 
@@ -333,4 +377,175 @@ function delete_k8s_deployment() {
     }
 
     
+}
+
+function deploy_k8s_activemq() {
+    amq_deployment_config = {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+           "labels": {
+              "app": "amq-" + k8s_obj.metadata.name,
+              "operated-by": "openunison-operator"
+           },
+           "name": "amq-" + k8s_obj.metadata.name,
+           "namespace": k8s_namespace
+        },
+        "spec": {
+            "strategy": {
+                "type": "Recreate"
+            },
+            "replicas": cfg_obj.replicas,
+            "selector": {
+                "matchLabels" : {
+                    "app": "amq-" + k8s_obj.metadata.name
+                }
+            },
+           "template": {
+              "metadata": {
+                 "creationTimestamp": null,
+                 "labels": {
+                    "app": "amq-" + k8s_obj.metadata.name,
+                    "operated-by": "openunison-operator"
+                 }
+              },
+              "spec": {
+                 "containers": [
+                    {
+                       "env": [
+                          {
+                             "name": "JAVA_OPTS",
+                             "value": "-Djava.awt.headless=true -Djava.security.egd=file:/dev/./urandom"
+                          },
+                          {
+                             "name": "JDBC_DRIVER",
+                             "valueFrom": {
+                                "secretKeyRef": {
+                                   "name": "amq-env-secrets-" + k8s_obj.metadata.name,
+                                   "key": "JDBC_DRIVER"
+                                }
+                             }
+                          },
+                          {
+                             "name": "JDBC_URL",
+                             "valueFrom": {
+                                "secretKeyRef": {
+                                   "name": "amq-env-secrets-" + k8s_obj.metadata.name,
+                                   "key": "JDBC_URL"
+                                }
+                             }
+                          },
+                          {
+                             "name": "JDBC_USER",
+                             "valueFrom": {
+                                "secretKeyRef": {
+                                   "name": "amq-env-secrets-" + k8s_obj.metadata.name,
+                                   "key": "JDBC_USER"
+                                }
+                             }
+                          },
+                          {
+                             "name": "JDBC_PASSWORD",
+                             "valueFrom": {
+                                "secretKeyRef": {
+                                   "name": "amq-env-secrets-" + k8s_obj.metadata.name,
+                                   "key": "JDBC_PASSWORD"
+                                }
+                             }
+                          },
+                          {
+                             "name": "TLS_KS_PWD",
+                             "valueFrom": {
+                                "secretKeyRef": {
+                                   "name": "amq-env-secrets-" + k8s_obj.metadata.name,
+                                   "key": "TLS_KS_PWD"
+                                }
+                             }
+                          }
+                       ],
+                       "image": cfg_obj.activemq_image,
+                       "imagePullPolicy": "Always",
+                       "livenessProbe": {
+                          "exec": {
+                             "command": [
+                                "/usr/bin/health_check.sh"
+                             ]
+                          },
+                          "failureThreshold": 10,
+                          "initialDelaySeconds": 10,
+                          "periodSeconds": 10,
+                          "successThreshold": 1,
+                          "timeoutSeconds": 10
+                       },
+                       "name": "amq-" + k8s_obj.metadata.name,
+                       "ports": [
+                          {
+                             "containerPort": 8080,
+                             "name": "http",
+                             "protocol": "TCP"
+                          },
+                          {
+                             "containerPort": 8443,
+                             "name": "https",
+                             "protocol": "TCP"
+                          }
+                       ],
+                       "readinessProbe": {
+                          "exec": {
+                             "command": [
+                                "/usr/bin/health_check.sh"
+                             ]
+                          },
+                          "failureThreshold": 3,
+                          "initialDelaySeconds": 10,
+                          "periodSeconds": 10,
+                          "successThreshold": 1,
+                          "timeoutSeconds": 10
+                       },
+                       "resources": {},
+                       "terminationMessagePath": "/dev/termination-log",
+                       "terminationMessagePolicy": "File",
+                       "volumeMounts": [
+                          {
+                             "mountPath": "/etc/activemq",
+                             "name": "secret-volume",
+                             "readOnly": true
+                          },
+                          {
+                              "name":"local-data",
+                              "mountPath":"/usr/local/activemq/data"
+                          },
+                          {
+                              "name":"jetty-tmp",
+                              "mountPath":"/usr/local/activemq/tmp"
+                          }
+                       ]
+                    }
+                 ],
+                 "dnsPolicy": "ClusterFirst",
+                 "restartPolicy": "Always",
+                 "terminationGracePeriodSeconds": 30,
+                 "volumes": [
+                    {
+                       "name": "secret-volume",
+                       "secret": {
+                          "defaultMode": 420,
+                          "secretName": "amq-secrets-" + k8s_obj.metadata.name
+                       }
+                    },
+                    {
+                        "name":"local-data",
+                        "emptyDir": {}
+                    },
+                    {
+                        "name":"jetty-tmp",
+                        "emptyDir":{}
+                    }
+                 ]
+              }
+           }
+        }
+     };
+
+     print(k8s.postWS('/apis/apps/v1/namespaces/' + k8s_namespace + '/deployments',JSON.stringify(amq_deployment_config)).data);
 }
