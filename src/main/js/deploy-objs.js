@@ -193,7 +193,7 @@ function create_activemq() {
         if (k8s.isOpenShift()) {
             deploy_amq_openshift();
         } else {
-
+            deploy_k8s_activemq();
         }
         
     

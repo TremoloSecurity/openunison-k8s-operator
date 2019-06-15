@@ -11,6 +11,8 @@ spec:
       storage: true
   version: v1
   scope: Namespaced
+  subresources:
+    status: {}
   names:
     plural: openunisons
     singular: openunison

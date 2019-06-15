@@ -387,8 +387,8 @@ function import_saml_idps() {
 
     cert_fingerprints = {};
 
-    for (var i=0;i<idps.length;i++) {
-        var remote_idp = idps[i];
+    for (var j=0;j<idps.length;j++) {
+        var remote_idp = idps[j];
 
         var xml_metadata = null;
         if (remote_idp.source.url != null && remote_idp.source.url !== "") {
