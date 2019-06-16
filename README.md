@@ -36,7 +36,7 @@ kubectl create -f https://raw.githubusercontent.com/TremoloSecurity/openunison-k
 Once the CRD is deployed, as a namespace administrator you need to create the RBAC rules and `ServiceAccount`:
 
 ```
-kubectl create -f https://raw.githubusercontent.com/TremoloSecurity/openunison-k8s-operator/master/src/main/yaml/openunison-operator-deploy.yaml
+kubectl create -f https://raw.githubusercontent.com/TremoloSecurity/openunison-k8s-operator/master/src/main/yaml/openunison-operator-deploy.yaml -n openunison
 ```
 
 Finally, deploy the operator.  When running on OpenShift, we OpenShift native objects:
@@ -47,7 +47,7 @@ kubectl create -f XXXXXXX
 
 Or in Kubernetes:
 ```
-kubectle create -f https://raw.githubusercontent.com/TremoloSecurity/openunison-k8s-operator/master/src/main/yaml/openunison-operator-deployment.yaml
+kubectl create -f https://raw.githubusercontent.com/TremoloSecurity/openunison-k8s-operator/master/src/main/yaml/openunison-operator-deployment.yaml -n openunison
 ```
 
 Once deployed, a pod will be running waiting for `OpenUnison` custom resources to be deployed.
