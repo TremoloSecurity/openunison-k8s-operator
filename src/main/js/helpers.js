@@ -272,6 +272,19 @@ function process_key_pair_config(key_config) {
     print("Posting secret");
     k8s.postWS('/api/v1/namespaces/' + target_ns + '/secrets',JSON.stringify(secret_to_create));
 
+    if (key_config.create_data.delete_pods_labels != null && key_config.create_data.delete_pods_labels.length > 0) {
+        print("Deleting pods per labels");
+        var label_selectors = '';
+        for (var ii = 0;ii < key_config.create_data.delete_pods_labels.length;ii++) {
+            if (ii > 0) {
+                label_selectors = label_selectors + '&';
+            }
+
+            label_selectors = label_selectors + key_config.create_data.delete_pods_labels[ii];
+        }
+        pods_list_response = k8s.deleteWS('/api/v1/namespaces/' + target_ns + '/pods?labelSelector=' + label_selectors);
+        print("Pods deleted");
+    }
     
     if (key_config.import_into_ks == null || key_config.import_into_ks === "" || key_config.import_into_ks === "keypair") {
         print("Storing to keystore");
