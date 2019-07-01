@@ -245,6 +245,10 @@ spec:
                                 type: integer
                               ca_cert:
                                 type: boolean
+                              delete_pods_labels:
+                                type: array
+                                items:
+                                  type: string
                               secret_info:
                                 type: object
                                 properties:
