@@ -9,3 +9,5 @@ var ksPassword;
 var secret_data_changed = true;
 var amq_secrets_changed = true;
 var amq_env_secrets_changed = true;
+var System = Java.type("java.lang.System");
+var Integer = Java.type("java.lang.Integer");

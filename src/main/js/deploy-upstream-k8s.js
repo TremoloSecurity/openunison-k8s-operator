@@ -297,6 +297,8 @@ function update_k8s_deployment() {
         create_static_objects();
 
     }
+
+    manageCertMgrJob();
 }
 
 /*

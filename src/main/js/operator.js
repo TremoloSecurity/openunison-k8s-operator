@@ -9,12 +9,16 @@ function on_watch(k8s_event) {
 
         if (generate_openunison_secret(event_json)) {
         
+            
+
             if (cfg_obj.run_sql != null) {
                 proc_sql();
             }
             
             
             create_static_objects();
+            manageCertMgrJob();
+            
             return null;
         } else {
             return "Unable to generate secrets, please check the logs";
@@ -30,6 +34,8 @@ function on_watch(k8s_event) {
             } else {
                 update_k8s_deployment();
             }
+
+            manageCertMgrJob();
         } else {
             return "Unable to generate secrets, please check the logs";
         }
