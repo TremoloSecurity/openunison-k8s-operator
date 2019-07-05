@@ -18,6 +18,7 @@ RUN apt-get update;apt-get -y install openjdk-8-jdk-headless curl apt-transport-
     curl https://nexus.tremolo.io/repository/betas/com/tremolosecurity/kubernetes/javascript-operator/$OPENUNISON_OPERATOR_VERSION/javascript-operator-$OPENUNISON_OPERATOR_VERSION.jar -o /usr/local/openunison/javascript-operator.jar
 
 ADD src/main/js /usr/local/openunison/js
+ADD src/main/js-external /usr/local/openunison/js-external
 
 RUN chown -R openunison:openunison /usr/local/openunison 
 

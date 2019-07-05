@@ -256,7 +256,7 @@ function create_static_objects() {
     k8s.postWS('/apis/rbac.authorization.k8s.io/v1/namespaces/' + k8s_namespace + '/rolebindings',JSON.stringify(obj))
 
     
-
+    
     
 
     obj = {
@@ -314,4 +314,205 @@ function create_static_objects() {
         create_activemq();
     }
     
+
+    
+
+
+    
+
+}
+
+function manageCertMgrJob() {
+    //create controller for certs
+
+    if (cfg_obj.key_store.update_controller == null) {
+        print("WARNING: Not deploying the cert manager");
+        return;
+    }
+
+    pathToExtraJS = System.getenv("EXTRA_JS");
+    javascript = NetUtil.downloadFile('file://' + pathToExtraJS + '/cert-check.js');
+
+    digest = java.security.MessageDigest.getInstance("SHA-256");
+    digest.update(javascript.getBytes("UTF-8"),0,javascript.length);
+    digest_bytes = digest.digest();
+    digest_base64 = java.util.Base64.getEncoder().encodeToString(digest_bytes);
+
+    is_update_job = false;
+
+    res = k8s.callWS('/api/v1/namespaces/' + k8s_namespace + '/configmaps/cert-controller-js-' + k8s_obj.metadata.name,null,-1);
+    if (res.code == 200) {
+        currentJs = JSON.parse(res.data);
+        currentJsDigest = currentJs.data.digest;
+
+        if (currentJsDigest != digest_base64) {
+            patch = {
+                "data":{
+                    "cert-check.js": javascript,
+                    "diget" : digest_base64
+                }
+            }
+
+            k8s.patchWS('/api/v1/namespaces/' + k8s_namespace + '/configmaps/cert-controller-js-' + k8s_obj.metadata.name,JSON.stringify(patch));
+        }
+    } else {
+        jsCfgMap = {
+            "apiVersion":"v1",
+            "kind":"ConfigMap",
+            "metadata":{
+                "labels": {
+                    "app": "openunison-" + k8s_obj.metadata.name,
+                    "operated-by": "openunison-operator"
+                },
+                "name": "cert-controller-js-" + k8s_obj.metadata.name,
+                "namespace": k8s_namespace
+            },
+            "data":{
+                "cert-check.js": javascript,
+                "diget" : digest_base64,
+                "input.props":"",
+                "deployment.yaml":""
+            }
+        };
+
+        k8s.postWS('/api/v1/namespaces/' + k8s_namespace + '/configmaps',JSON.stringify(jsCfgMap));
+    }
+
+    resp = k8s.callWS('/apis/batch/v1beta1/namespaces/' + k8s_namespace + '/cronjobs/check-certs-' + k8s_obj.metadata.name,null,-1);
+
+    if (resp.code == 200) {
+        currentCronJob = JSON.parse(resp.data);
+        run_patch = false;
+        patch_image = false;
+        patch = {};
+        if (currentCronJob.spec.jobTemplate.spec.template.spec.containers[0].image != cfg_obj.key_store.update_controller.image) {
+            run_patch = true;
+            patch_image = true;
+            patch = {
+                "spec": {
+                    "jobTemplate": {
+                        "spec":{
+                            "template":{
+                                "spec": {
+        
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+            patch.jobTemplate.spec.template.spec["containers"] = currentCronJob.spec.jobTemplate.spec.template.spec.containers;
+            patch.jobTemplate.spec.template.spec.containers[0].image = cfg_obj.key_store.update_controller.image;
+        }
+
+        if (currentCronJob.spec.schedule != cfg_obj.key_store.update_controller.schedule) {
+            run_patch = true;
+            if (patch.spec == null) {
+                patch["spec"] = {};
+            }
+            patch.spec["schedule"] = cfg_obj.key_store.update_controller.schedule;
+        }
+
+        if (Integer.parseInt(currentCronJob.spec.jobTemplate.spec.template.spec.containers[0].env[0].value) != cfg_obj.key_store.update_controller.days_to_expire) {
+            run_patch = true;
+            if (! patch_image) {
+                patch = {
+                    "spec":{
+                        "jobTemplate": {
+                            "spec":{
+                                "template":{
+                                    "spec": {
+            
+                                    }
+                                }
+                            }
+                        }
+                    }
+                };
+                patch.spec.jobTemplate.spec.template.spec["containers"] = currentCronJob.spec.jobTemplate.spec.template.spec.containers;
+            }
+
+            patch.spec.jobTemplate.spec.template.spec.containers[0].env[0].value = Integer.toString(cfg_obj.key_store.update_controller.days_to_expire);
+        }
+
+        if (run_patch) {
+            print("Patching the cert cron job");
+            print(JSON.stringify(patch));
+            print(k8s.patchWS('/apis/batch/v1beta1/namespaces/' + k8s_namespace + '/cronjobs/check-certs-' + k8s_obj.metadata.name,JSON.stringify(patch))["data"]);
+        } else {
+            print("Not patching the job");
+        }
+    } else {
+
+
+
+        checkCertsJob = {
+            "apiVersion": "batch/v1beta1",
+            "kind": "CronJob",
+            "metadata": {
+                "labels": {
+                    "app": "openunison-" + k8s_obj.metadata.name,
+                    "operated-by": "openunison-operator"
+                },
+                "name": "check-certs-" + k8s_obj.metadata.name,
+                "namespace": k8s_namespace
+            },
+            "spec": {
+            "schedule": cfg_obj.key_store.update_controller.schedule,
+            "jobTemplate": {
+                "spec": {
+                "template": {
+                    "spec": {
+                    "containers": [
+                        {
+                        "name": "check-certs-" + k8s_obj.metadata.name,
+                        "image": cfg_obj.key_store.update_controller.image,
+                        "env": [
+                            {
+                                "name":"CERT_DAYS_EXPIRE",
+                                "value": Integer.toString(cfg_obj.key_store.update_controller.days_to_expire)
+                            }
+                        ],
+                        "command": ["java", "-jar", "/usr/local/artifactdeploy/artifact-deploy.jar",  "-extraCertsPath","/etc/extracerts","-installScriptURL", "file:///etc/input-maps/cert-check.js","-kubernetesURL","https://kubernetes.default.svc.cluster.local","-rootCaPath","/var/run/secrets/kubernetes.io/serviceaccount/ca.crt","-secretsPath","/etc/input-maps/input.props","-tokenPath","/var/run/secrets/kubernetes.io/serviceaccount/token","-deploymentTemplate","file:///etc/input-maps/deployment.yaml"],
+                        "volumeMounts": [
+                            {
+                                "name":"extra-certs-dir",
+                                "mountPath":"/etc/extracerts",
+                                "readOnly":true
+                            },
+                            {
+                                "name":"input-maps",
+                                "mountPath":"/etc/input-maps",
+                                "readOnly":true
+                            }
+                        ]
+                        }
+                    ],
+                    "restartPolicy": "Never",
+                    "serviceAccount": "openunison-operator",
+                    "serviceAccountName": "openunison-operator",
+                    "volumes": [
+                        {
+                            "name":"extra-certs-dir",
+                            "configMap": {
+                                "name": "cert-controller-js-" + k8s_obj.metadata.name
+                            }
+                        },
+                        {
+                            "name":"input-maps",
+                            "configMap": {
+                                "name": "cert-controller-js-" + k8s_obj.metadata.name
+                            }
+                        }
+                    ]
+                    }
+                },
+                "backoffLimit": 1
+                }
+            }
+            }
+        };
+
+        print(k8s.postWS('/apis/batch/v1beta1/namespaces/' + k8s_namespace + '/cronjobs',JSON.stringify(checkCertsJob))["data"]);
+    }
 }

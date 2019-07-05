@@ -183,6 +183,15 @@ spec:
             key_store:
               type: object
               properties:
+                update_controller:
+                  type: object
+                  properties:
+                    image:
+                      type: string
+                    schedule:
+                      type: string
+                    days_to_expire:
+                      type: integer
                 static_keys:
                   type: array
                   items:
