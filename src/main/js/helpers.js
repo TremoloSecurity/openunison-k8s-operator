@@ -532,7 +532,10 @@ function generate_openunison_secret(event_json) {
     print("Storing trusted certificates");
     for (i=0;i<cfg_obj.key_store.trusted_certificates.length;i++) {
         CertUtils.importCertificate(ouKs,ksPassword,cfg_obj.key_store.trusted_certificates[i].name,cfg_obj.key_store.trusted_certificates[i].pem_data);
+        NetUtil.addCertToStore(CertUtils.pem2cert(cfg_obj.key_store.trusted_certificates[i].pem_data),cfg_obj.key_store.trusted_certificates[i].name);
     }
+
+    NetUtil.initssl();
 
     print("Processing keypairs");
     
