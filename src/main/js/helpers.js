@@ -5,9 +5,11 @@
 function props_from_crd() {
     props = {};
 
-    for (i=0;i<cfg_obj.non_secret_data.length;i++) {
-        props[cfg_obj.non_secret_data[i].name] = cfg_obj.non_secret_data[i].value;
-    }
+    if (cfg_obj.non_secret_data != null) {
+        for (i=0;i<cfg_obj.non_secret_data.length;i++) {
+            props[cfg_obj.non_secret_data[i].name] = cfg_obj.non_secret_data[i].value;
+        }
+    } 
 
     props["K8S_SELF_LINK"] = k8s_obj.metadata.selfLink;
 
@@ -530,23 +532,27 @@ function generate_openunison_secret(event_json) {
     CertUtils.importCertificate(ouKs,ksPassword,'k8s-master',k8s.getCaCert());
 
     print("Storing trusted certificates");
-    for (i=0;i<cfg_obj.key_store.trusted_certificates.length;i++) {
-        CertUtils.importCertificate(ouKs,ksPassword,cfg_obj.key_store.trusted_certificates[i].name,cfg_obj.key_store.trusted_certificates[i].pem_data);
-        NetUtil.addCertToStore(CertUtils.pem2cert(cfg_obj.key_store.trusted_certificates[i].pem_data),cfg_obj.key_store.trusted_certificates[i].name);
+    if (cfg_obj.key_store != null && cfg_obj.key_store.trusted_certificates != null) {
+        for (i=0;i<cfg_obj.key_store.trusted_certificates.length;i++) {
+            CertUtils.importCertificate(ouKs,ksPassword,cfg_obj.key_store.trusted_certificates[i].name,cfg_obj.key_store.trusted_certificates[i].pem_data);
+            NetUtil.addCertToStore(CertUtils.pem2cert(cfg_obj.key_store.trusted_certificates[i].pem_data),cfg_obj.key_store.trusted_certificates[i].name);
+        }
     }
 
     NetUtil.initssl();
 
     print("Processing keypairs");
     
-    print("Number of keys : '" + cfg_obj.key_store.key_pairs.keys.length + "'");
-    
-    for (var i=0;i<cfg_obj.key_store.key_pairs.keys.length;i++) {
-        print(i);
-        key_config = cfg_obj.key_store.key_pairs.keys[i];
-        key_config.name = script_val(key_config.name);
-        process_key_pair_config(key_config);
-        print(i);
+    if (cfg_obj.key_store && cfg_obj.key_store.key_pairs != null) {
+        print("Number of keys : '" + cfg_obj.key_store.key_pairs.keys.length + "'");
+        
+        for (var i=0;i<cfg_obj.key_store.key_pairs.keys.length;i++) {
+            print(i);
+            key_config = cfg_obj.key_store.key_pairs.keys[i];
+            key_config.name = script_val(key_config.name);
+            process_key_pair_config(key_config);
+            print(i);
+        }
     }
 
     process_static_keys();
