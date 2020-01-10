@@ -41,6 +41,10 @@ function deploy_openshift_objects() {
     print("import builder image");
 
 
+
+    
+
+
     import_builder_image = {
     "kind": "ImageStreamImport",
     "apiVersion": "image.openshift.io/v1",
@@ -71,6 +75,8 @@ function deploy_openshift_objects() {
     };
 
     res = k8s.postWS("/apis/image.openshift.io/v1/namespaces/" + k8s_namespace + "/imagestreamimports",JSON.stringify(import_builder_image));
+
+    print(res);
 
     ou_imagestream = {
         "kind": "ImageStream",
@@ -301,6 +307,9 @@ function deploy_openshift_objects() {
 }
 
 function deploy_amq_openshift() {
+    
+
+
     import_amq_image = {
         "kind": "ImageStreamImport",
         "apiVersion": "image.openshift.io/v1",

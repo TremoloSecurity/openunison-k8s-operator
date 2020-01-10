@@ -9,7 +9,23 @@ function on_watch(k8s_event) {
 
         if (generate_openunison_secret(event_json)) {
         
-            
+            if (k8s.isOpenShift()) {
+
+                override_image = System.getenv("RELATED_IMAGE_S2I");
+
+                if (override_image != null) {
+                    print("Overriding '" + cfg_obj.openshift.builder_image + "' with '" + override_image + "'");
+                    cfg_obj.openshift.builder_image = override_image;
+                }
+
+
+                override_image = System.getenv("RELATED_IMAGE_AMQ");
+                    
+                if (override_image != null) {
+                    print("Overriding '" + cfg_obj.activemq_image + "' with '" + override_image + "'");
+                    cfg_obj.activemq_image = override_image;
+                }
+            }
 
             if (cfg_obj.run_sql != null) {
                 proc_sql();
@@ -30,6 +46,23 @@ function on_watch(k8s_event) {
         if (generate_openunison_secret(event_json)) {
 
             if (k8s.isOpenShift()) {
+
+                override_image = System.getenv("RELATED_IMAGE_S2I");
+
+                if (override_image != null) {
+                    print("Overriding '" + cfg_obj.openshift.builder_image + "' with '" + override_image + "'");
+                    cfg_obj.openshift.builder_image = override_image;
+                }
+
+
+                override_image = System.getenv("RELATED_IMAGE_AMQ");
+                    
+                if (override_image != null) {
+                    print("Overriding '" + cfg_obj.activemq_image + "' with '" + override_image + "'");
+                    cfg_obj.activemq_image = override_image;
+                }
+
+
                 update_openshift_deploymentconfig();
             } else {
                 update_k8s_deployment();
