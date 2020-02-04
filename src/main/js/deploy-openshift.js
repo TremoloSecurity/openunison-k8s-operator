@@ -213,7 +213,9 @@ function deploy_openshift_objects() {
                             "livenessProbe": {
                                 "exec": {
                                     "command": [
-                                        "/usr/local/openunison/bin/check_alive.py"
+                                        "sh",
+                                        "-c",
+                                        "curl --insecure https://127.0.0.1:8443/check_alive | grep Anonymous"
                                     ]
                                 },
                                 "initialDelaySeconds": 30,
@@ -223,7 +225,9 @@ function deploy_openshift_objects() {
                             "readinessProbe": {
                                 "exec": {
                                     "command": [
-                                        "/usr/local/openunison/bin/check_alive.py"
+                                        "sh",
+                                        "-c",
+                                        "curl --insecure https://127.0.0.1:8443/check_alive | grep Anonymous"
                                     ]
                                 },
                                 "initialDelaySeconds": 30,
