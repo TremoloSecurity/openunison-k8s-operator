@@ -412,6 +412,10 @@ function import_saml_idps() {
             print("Downloaded");
         } else {
             xml_metadata = remote_idp.source.xml;
+            
+            if (xml_metadata.indexOf("<") == -1 ) {
+                xml_metadata = new java.lang.String(java.util.Base64.getDecoder().decode(xml_metadata));
+            }
         }
 
         dbFactory = javax.xml.parsers.DocumentBuilderFactory.newInstance();
