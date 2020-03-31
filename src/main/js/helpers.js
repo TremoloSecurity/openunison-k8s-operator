@@ -465,21 +465,7 @@ function import_saml_idps() {
             }
         }
 
-        if (sig_certs.length == 1) {
-            current_cert_choice = com.tremolosecurity.kubernetes.artifacts.util.CertUtils.string2cert(sig_certs[0]);
-        } else {
-            for (i=0;i<sig_certs.length;i++) {
-                current_cert = com.tremolosecurity.kubernetes.artifacts.util.CertUtils.string2cert(sig_certs[i]);
-                if (current_cert_choice == null) {
-                    current_cert_choice = current_cert;
-                } else {
-                    if (current_cert_choice.getNotAfter().compareTo(current_cert.getNotAfter())  < 0  ) {
-                        current_cert_choice = current_cert;
-                    }
-                }
-            }
-            
-        }
+        
 
 
         inProp[remote_idp.mapping.entity_id] = entityId;
@@ -489,10 +475,20 @@ function import_saml_idps() {
 
         
 
-        ouKs.setCertificateEntry(remote_idp.mapping.signing_cert_alias,current_cert_choice);
+        ouKs.setCertificateEntry(remote_idp.mapping.signing_cert_alias,com.tremolosecurity.kubernetes.artifacts.util.CertUtils.string2cert(sig_certs[0]));
+
+        for (i=1;i<sig_certs.length;i++) {
+            ouKs.setCertificateEntry(remote_idp.mapping.signing_cert_alias + '-' + i,com.tremolosecurity.kubernetes.artifacts.util.CertUtils.string2cert(sig_certs[i]));
+        }
 
         digest = java.security.MessageDigest.getInstance("SHA-256");
-        digest.update(current_cert_choice.getEncoded(),0,current_cert_choice.getEncoded().length);
+
+        for (i=0;i<sig_certs.length;i++) {
+            current_cert_choice = com.tremolosecurity.kubernetes.artifacts.util.CertUtils.string2cert(sig_certs[i]);
+            digest.update(current_cert_choice.getEncoded(),0,current_cert_choice.getEncoded().length);
+        }
+
+        
         digest_bytes = digest.digest();
         digest_base64 = java.util.Base64.getEncoder().encodeToString(digest_bytes);
 
