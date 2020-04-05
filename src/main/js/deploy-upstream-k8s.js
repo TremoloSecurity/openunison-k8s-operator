@@ -126,7 +126,7 @@ function create_k8s_deployment() {
                         {
                             "env": [
                                 {
-                                    "name": "JAVA_OPTS",
+                                    "name": "ACTIVEMQ_DEBUG_OPTS",
                                     "value": "-Djava.awt.headless=true -Djava.security.egd=file:/dev/./urandom\n-DunisonEnvironmentFile=/etc/openunison/ou.env"
                                 },
                                 {
@@ -416,7 +416,7 @@ function deploy_k8s_activemq() {
                     {
                        "env": [
                           {
-                             "name": "JAVA_OPTS",
+                             "name": "ACTIVEMQ_DEBUG_OPTS",
                              "value": "-Djava.awt.headless=true -Djava.security.egd=file:/dev/./urandom"
                           },
                           {
