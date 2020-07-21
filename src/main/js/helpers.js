@@ -409,6 +409,10 @@ function import_saml_idps() {
         if (remote_idp.source.url != null && remote_idp.source.url !== "") {
             print("Downloading metadata from : " + remote_idp.source.url + "'");
             xml_metadata = NetUtil.downloadFile(remote_idp.source.url);
+            print("XML Metadata :");
+            print("--------------");
+            print(xml_metadata);
+            print("--------------")
             print("Downloaded");
         } else {
             xml_metadata = remote_idp.source.xml;
@@ -419,13 +423,18 @@ function import_saml_idps() {
         }
 
         dbFactory = javax.xml.parsers.DocumentBuilderFactory.newInstance();
+        dbFactory.setNamespaceAware(true);
         dBuilder = dbFactory.newDocumentBuilder();
         doc = dBuilder.parse(new java.io.ByteArrayInputStream(xml_metadata.getBytes("UTF-8")));
 
-        //get entity id
-        entityId = doc.getElementsByTagName("EntityDescriptor").item(0).getAttribute("entityID");
+        root = doc.getDocumentElement();
 
-        idp = doc.getElementsByTagName("IDPSSODescriptor").item(0);
+        ed =  org.opensaml.core.xml.util.XMLObjectSupport.getUnmarshaller(root).unmarshall(root);
+
+        //get entity id
+        entityId = ed.getEntityID();
+
+        idp = ed.getIDPSSODescriptor("urn:oasis:names:tc:SAML:2.0:protocol");
 
         singleLogoutURL = "";
         ssoGetURL = "";
