@@ -427,14 +427,16 @@ function import_saml_idps() {
         dBuilder = dbFactory.newDocumentBuilder();
         doc = dBuilder.parse(new java.io.ByteArrayInputStream(xml_metadata.getBytes("UTF-8")));
 
-        root = doc.getDocumentElement();
+        xpath = javax.xml.xpath.XPathFactory.newInstance().newXPath();
+        node = xpath.compile("/*[local-name() = 'EntityDescriptor']").evaluate(doc,javax.xml.xpath.XPathConstants.NODE);
 
-        ed =  org.opensaml.core.xml.util.XMLObjectSupport.getUnmarshaller(root).unmarshall(root);
+
 
         //get entity id
-        entityId = ed.getEntityID();
+        entityId = node.getAttribute("entityID");
 
-        idp = ed.getIDPSSODescriptor("urn:oasis:names:tc:SAML:2.0:protocol");
+        xpathexpr = "//*[local-name() = 'IDPSSODescriptor']";
+        idp = xpath.compile(xpathexpr).evaluate(node,javax.xml.xpath.XPathConstants.NODE);
 
         singleLogoutURL = "";
         ssoGetURL = "";
@@ -446,7 +448,8 @@ function import_saml_idps() {
 
 
         //single logout
-        slos = idp.getElementsByTagName("SingleLogoutService");
+        xpathexpr = "//*[local-name() = 'SingleLogoutService']";
+        slos = xpath.compile(xpathexpr).evaluate(node,javax.xml.xpath.XPathConstants.NODESET);
 
         for (i = 0;i<slos.getLength();i++) {
             slo = slos.item(i);
@@ -456,7 +459,8 @@ function import_saml_idps() {
         }
 
         //single sign on
-        ssos = idp.getElementsByTagName("SingleSignOnService");
+        xpathexpr = "//*[local-name() = 'SingleSignOnService']";
+        ssos = xpath.compile(xpathexpr).evaluate(node,javax.xml.xpath.XPathConstants.NODESET);
 
         for (i = 0;i<ssos.getLength();i++) {
             sso = ssos.item(i);
@@ -467,13 +471,16 @@ function import_saml_idps() {
             }
         }
 
-        keys = idp.getElementsByTagName("KeyDescriptor");
+        xpathexpr = "//*[local-name() = 'KeyDescriptor']";
+        keys = xpath.compile(xpathexpr).evaluate(node,javax.xml.xpath.XPathConstants.NODESET);
 
         for (i=0;i<keys.getLength();i++) {
             key = keys.item(i);
 
             if (key.getAttribute("use").equalsIgnoreCase("signing")) {
-                sig_cert = key.getElementsByTagName("KeyInfo").item(0).getElementsByTagName("X509Data").item(0).getElementsByTagName("X509Certificate").item(0).getTextContent();
+                xpathexpr = "//*[local-name() = 'X509Certificate']";
+                cert_tag = xpath.compile(xpathexpr).evaluate(key,javax.xml.xpath.XPathConstants.NODE);
+                sig_cert = cert_tag.getTextContent();
                 sig_certs.push(sig_cert);
             }
         }
