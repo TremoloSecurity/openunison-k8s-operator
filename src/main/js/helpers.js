@@ -409,6 +409,10 @@ function import_saml_idps() {
         if (remote_idp.source.url != null && remote_idp.source.url !== "") {
             print("Downloading metadata from : " + remote_idp.source.url + "'");
             xml_metadata = NetUtil.downloadFile(remote_idp.source.url);
+            print("XML Metadata :");
+            print("--------------");
+            print(xml_metadata);
+            print("--------------")
             print("Downloaded");
         } else {
             xml_metadata = remote_idp.source.xml;
@@ -419,13 +423,20 @@ function import_saml_idps() {
         }
 
         dbFactory = javax.xml.parsers.DocumentBuilderFactory.newInstance();
+        dbFactory.setNamespaceAware(true);
         dBuilder = dbFactory.newDocumentBuilder();
         doc = dBuilder.parse(new java.io.ByteArrayInputStream(xml_metadata.getBytes("UTF-8")));
 
-        //get entity id
-        entityId = doc.getElementsByTagName("EntityDescriptor").item(0).getAttribute("entityID");
+        xpath = javax.xml.xpath.XPathFactory.newInstance().newXPath();
+        node = xpath.compile("/*[local-name() = 'EntityDescriptor']").evaluate(doc,javax.xml.xpath.XPathConstants.NODE);
 
-        idp = doc.getElementsByTagName("IDPSSODescriptor").item(0);
+
+
+        //get entity id
+        entityId = node.getAttribute("entityID");
+
+        xpathexpr = "//*[local-name() = 'IDPSSODescriptor']";
+        idp = xpath.compile(xpathexpr).evaluate(node,javax.xml.xpath.XPathConstants.NODE);
 
         singleLogoutURL = "";
         ssoGetURL = "";
@@ -437,7 +448,8 @@ function import_saml_idps() {
 
 
         //single logout
-        slos = idp.getElementsByTagName("SingleLogoutService");
+        xpathexpr = "//*[local-name() = 'SingleLogoutService']";
+        slos = xpath.compile(xpathexpr).evaluate(node,javax.xml.xpath.XPathConstants.NODESET);
 
         for (i = 0;i<slos.getLength();i++) {
             slo = slos.item(i);
@@ -447,7 +459,8 @@ function import_saml_idps() {
         }
 
         //single sign on
-        ssos = idp.getElementsByTagName("SingleSignOnService");
+        xpathexpr = "//*[local-name() = 'SingleSignOnService']";
+        ssos = xpath.compile(xpathexpr).evaluate(node,javax.xml.xpath.XPathConstants.NODESET);
 
         for (i = 0;i<ssos.getLength();i++) {
             sso = ssos.item(i);
@@ -458,13 +471,16 @@ function import_saml_idps() {
             }
         }
 
-        keys = idp.getElementsByTagName("KeyDescriptor");
+        xpathexpr = "//*[local-name() = 'KeyDescriptor']";
+        keys = xpath.compile(xpathexpr).evaluate(node,javax.xml.xpath.XPathConstants.NODESET);
 
         for (i=0;i<keys.getLength();i++) {
             key = keys.item(i);
 
             if (key.getAttribute("use").equalsIgnoreCase("signing")) {
-                sig_cert = key.getElementsByTagName("KeyInfo").item(0).getElementsByTagName("X509Data").item(0).getElementsByTagName("X509Certificate").item(0).getTextContent();
+                xpathexpr = "//*[local-name() = 'X509Certificate']";
+                cert_tag = xpath.compile(xpathexpr).evaluate(key,javax.xml.xpath.XPathConstants.NODE);
+                sig_cert = cert_tag.getTextContent();
                 sig_certs.push(sig_cert);
             }
         }
@@ -558,6 +574,9 @@ function generate_openunison_secret(event_json) {
     process_static_keys();
 
     import_saml_idps();
+
+    print("Importing CACerts");
+    CertUtils.mergeCaCerts(ouKs);
 
 
     string_for_hash = java.util.Base64.getEncoder().encodeToString(k8s.json2yaml(JSON.stringify(cfg_obj.openunison_network_configuration) ).getBytes("UTF-8")  ) + k8s.encodeMap(inProp);
