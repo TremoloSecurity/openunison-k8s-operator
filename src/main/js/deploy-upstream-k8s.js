@@ -127,7 +127,7 @@ function create_k8s_deployment() {
                             "env": [
                                 {
                                     "name": "JAVA_OPTS",
-                                    "value": "-Djava.awt.headless=true -Djava.security.egd=file:/dev/./urandom\n-DunisonEnvironmentFile=/etc/openunison/ou.env"
+                                    "value": "-Djava.awt.headless=true -Djava.security.egd=file:/dev/./urandom -DunisonEnvironmentFile=/etc/openunison/ou.env -Djavax.net.ssl.trustStore=/etc/openunison/unisonKeyStore.p12"
                                 },
                                 {
                                     "name": "fortriggerupdates",
