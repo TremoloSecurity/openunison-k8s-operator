@@ -575,6 +575,9 @@ function generate_openunison_secret(event_json) {
 
     import_saml_idps();
 
+    print("Importing CACerts");
+    CertUtils.mergeCaCerts(ouKs);
+
 
     string_for_hash = java.util.Base64.getEncoder().encodeToString(k8s.json2yaml(JSON.stringify(cfg_obj.openunison_network_configuration) ).getBytes("UTF-8")  ) + k8s.encodeMap(inProp);
     bytes_for_hash = string_for_hash.getBytes("UTF-8");
