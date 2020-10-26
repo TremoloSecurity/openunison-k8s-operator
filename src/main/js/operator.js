@@ -34,6 +34,7 @@ function on_watch(k8s_event) {
             
             create_static_objects();
             manageCertMgrJob();
+            update_workflow_validating_webhook_certificate();
             
             return null;
         } else {
@@ -69,6 +70,7 @@ function on_watch(k8s_event) {
             }
 
             manageCertMgrJob();
+            update_workflow_validating_webhook_certificate();
         } else {
             return "Unable to generate secrets, please check the logs";
         }
