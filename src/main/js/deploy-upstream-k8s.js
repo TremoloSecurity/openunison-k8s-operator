@@ -86,6 +86,10 @@ function create_ingress_objects() {
 
 
 function create_k8s_deployment() {
+
+
+
+
     obj = {
         "apiVersion": "apps/v1",
         "kind": "Deployment",
@@ -205,7 +209,155 @@ function create_k8s_deployment() {
         }
     };
 
+    if (! isEmpty(cfg_obj.deployment_data) ) {
+        if (cfg_obj.deployment_data.tokenrequest_api.enabled) {
+            configure_tokenapi_sa(obj);
+        }
+
+        if (! isEmpty(cfg_obj.deployment_data.readiness_probe_command) ) {
+            obj.spec.template.spec.containers[0].readinessProbe.exec.command = cfg_obj.deployment_data.readiness_probe_command;
+        }
+
+        if (! isEmpty(cfg_obj.deployment_data.liveness_probe_command) ) {
+            obj.spec.template.spec.containers[0].livenessProbe.exec.command = cfg_obj.deployment_data.liveness_probe_command;
+        }
+
+        print(cfg_obj.deployment_data.node_selectors);
+        if (! isEmpty(cfg_obj.deployment_data.node_selectors)) {
+            print("setting node selectors");
+            obj.spec.template.spec["nodeSelector"] = {};
+            print(JSON.stringify(obj.spec.template.spec["nodeSelector"]));
+            for (var i = 0;i < cfg_obj.deployment_data.node_selectors.length;i++) {
+                print(cfg_obj.deployment_data.node_selectors[i].name);
+                print(cfg_obj.deployment_data.node_selectors[i].value);
+                obj.spec.template.spec.nodeSelector[cfg_obj.deployment_data.node_selectors[i].name] = cfg_obj.deployment_data.node_selectors[i].value;
+            }
+            print(JSON.stringify(obj.spec.template.spec["nodeSelector"]));
+        }
+
+    }
+
     k8s.postWS('/apis/apps/v1/namespaces/' + k8s_namespace + '/deployments',JSON.stringify(obj));
+}
+
+/*
+  Update the deployment for using the TokenAPI for the service account
+*/
+function configure_tokenapi_sa(deplotment) {
+    deplotment.spec.template.spec["automountServiceAccountToken"] = false;
+
+    var found_volumemount = false;
+    for (var ii=0;ii<deplotment.spec.template.spec.containers[0].volumeMounts.length;ii++) {
+        var volumeMount = deplotment.spec.template.spec.containers[0].volumeMounts[ii];
+        print("checking '" + volumeMount.name + "'");
+        if (volumeMount.name == "ou-token") {
+            found_volumemount = true;
+            break;
+        }
+    }
+
+    if (! found_volumemount) {
+        deplotment.spec.template.spec.containers[0].volumeMounts.push(
+            {
+                "mountPath":"/var/run/secrets/tokens",
+                "name":"ou-token"
+            }
+        );
+    }
+
+    var found_volume = false;
+    for (var ii=0;ii<deplotment.spec.template.spec.volumes.length;ii++) {
+        var volume = deplotment.spec.template.spec.volumes[ii];
+        if (volume.name == "ou-token") {
+            found_volume = true;
+        }
+    }
+
+    if (! found_volume) {
+        deplotment.spec.template.spec.volumes.push(
+            {
+                "name": "ou-token",
+                "projected": {
+                    "defaultMode": 420,
+                    "sources": [
+                    {
+                        "serviceAccountToken": {
+                        "audience": cfg_obj.deployment_data.tokenrequest_api.audience,
+                        "expirationSeconds": cfg_obj.deployment_data.tokenrequest_api.expirationSeconds,
+                        "path": "ou-token"
+                        }
+                    },
+                    {
+                        "configMap": {
+                        "items": [
+                            {
+                            "key": "ca.crt",
+                            "path": "ca.crt"
+                            }
+                        ],
+                        "name": "kube-cacrt"
+                        }
+                    }
+                    ]
+                }
+                }
+        );
+    }
+    //get the secret's CA cert
+    k8s_api_cert = NetUtil.downloadFile("file:///var/run/secrets/kubernetes.io/serviceaccount/ca.crt");
+
+    results = k8s.callWS("/api/v1/namespaces/" + k8s_namespace + "/configmaps/kube-cacrt","",-1);
+
+    if (results.code == 200) {
+        //patch
+        cacrt_configmap = {
+            "data": {
+                "ca.crt": k8s_api_cert
+            }
+        }
+
+        print("Patching API server configmap");
+        k8s.patchWS("/api/v1/namespaces/" + k8s_namespace + "/configmaps/kube-cacrt",JSON.stringify(cacrt_configmap));
+    } else {
+        //create the secret
+        cacrt_configmap = {
+            "apiVersion": "v1",
+            "data": {
+                "ca.crt": k8s_api_cert
+            },
+            "kind": "ConfigMap",
+            "metadata": {
+                "name": "kube-cacrt",
+                "namespace": k8s_namespace
+            }
+        }
+
+        print("Creating API server configmap");
+        k8s.postWS("/api/v1/namespaces/" + k8s_namespace + "/configmaps",JSON.stringify(cacrt_configmap));
+        
+    };
+}
+
+function disable_tokenapi_sa(deplotment) {
+    deplotment.spec.template.spec["automountServiceAccountToken"] = true;
+    
+    for (var ii=0;ii<deplotment.spec.template.spec.containers[0].volumeMounts.length;ii++) {
+        var volumeMount = deplotment.spec.template.spec.containers[0].volumeMounts[ii];
+        print("checking '" + volumeMount.name + "'");
+        if (volumeMount.name == "ou-token") {
+            print("Removing");
+            deplotment.spec.template.spec.containers[0].volumeMounts.splice(ii,1);
+            print("after remove : '" + JSON.stringify(deplotment.spec.template.spec.containers[0].volumeMounts) + "'");
+            break;
+        }
+    }
+    
+    for (var ii=0;ii<deplotment.spec.template.spec.volumes.length;ii++) {
+        var volume = deplotment.spec.template.spec.volumes[ii];
+        if (volume.name == "ou-token") {
+            deplotment.spec.template.spec.volumes.splice(ii,1);
+        }
+    }
 }
 
 /*
@@ -243,6 +395,50 @@ function update_k8s_deployment() {
             
             patch.spec.template.spec.containers[0].image = cfg_obj.image;
         }
+
+
+        print("checking if need to update deployment info");
+        if (! isEmpty(cfg_obj.deployment_data) ) {
+            print("There's deployment data");
+            if (cfg_obj.deployment_data.tokenrequest_api.enabled) {
+                print("Enabling the TokenRequest API");
+                configure_tokenapi_sa(patch);
+                
+            } else {
+                disable_tokenapi_sa(patch); 
+            }
+
+
+            if (! isEmpty(cfg_obj.deployment_data.readiness_probe_command) ) {
+                patch.spec.template.spec.containers[0].readinessProbe.exec.command = cfg_obj.deployment_data.readiness_probe_command;
+            }
+    
+            if (! isEmpty(cfg_obj.deployment_data.liveness_probe_command) ) {
+                patch.spec.template.spec.containers[0].livenessProbe.exec.command = cfg_obj.deployment_data.liveness_probe_command;
+            }
+    
+            
+            if (cfg_obj.deployment_data.node_selectors !== undefined ) {
+                print("setting node selectors");
+                
+                patch.spec.template.spec["nodeSelector"] = {};
+                
+                for (var i = 0;i < cfg_obj.deployment_data.node_selectors.length;i++) {
+                    
+                    patch.spec.template.spec.nodeSelector[cfg_obj.deployment_data.node_selectors[i].name] = cfg_obj.deployment_data.node_selectors[i].value;
+                }
+                
+
+                if (isEmpty(patch.spec.template.spec["nodeSelector"])) {
+                    
+                    patch.spec.template.spec["nodeSelector"] = null;
+                }
+            }
+        } else {
+            disable_tokenapi_sa(patch);
+        }
+        
+        
 
         k8s.patchWS('/apis/apps/v1/namespaces/' + k8s_namespace + "/deployments/openunison-" + k8s_obj.metadata.name,JSON.stringify(patch));
 
@@ -551,3 +747,4 @@ function deploy_k8s_activemq() {
 
      print(k8s.postWS('/apis/apps/v1/namespaces/' + k8s_namespace + '/deployments',JSON.stringify(amq_deployment_config)).data);
 }
+
