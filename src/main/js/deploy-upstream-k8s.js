@@ -23,41 +23,72 @@ function restart_k8s_dashboard() {
     }
 }
 
-function create_ingress_objects() {
+function create_nginx_object(host,isNew) {
+    obj = {
+        "apiVersion": "extensions/v1beta1",
+        "kind": "Ingress",
+        "metadata": {
+            "annotations": {
+                
+                "nginx.ingress.kubernetes.io/backend-protocol": "https",
+                "nginx.ingress.kubernetes.io/secure-backends": "true",
+                "nginx.org/ssl-services": "openunison-" + k8s_obj.metadata.name,
+                "nginx.ingress.kubernetes.io/affinity": "cookie",
+                "nginx.ingress.kubernetes.io/session-cookie-name": host.ingress_name + "-" + k8s_obj.metadata.name,
+                "nginx.ingress.kubernetes.io/session-cookie-hash": "sha1"
+            },
+            "name": host.ingress_name,
+            "namespace": k8s_namespace
+        },
+        "spec": {
+            "rules": [
+                
+            ],
+            "tls": [
+                {
+                    "hosts": [
+                        
+                    ],
+                    "secretName": host.secret_name
+                }
+            ]
+        },
+        "status": {
+            "loadBalancer": {}
+        }
+    };
+
+    //"kubernetes.io/ingress.class": "nginx",
+
+    if (! isEmpty(host.annotations)) {
+        for (var ii = 0;ii<host.annotations.length;ii++) {
+            obj.metadata.annotations[host.annotations[ii].name] = host.annotations[ii].value;
+        }
+    }
+
+    if (isEmpty(obj.metadata.annotations["kubernetes.io/ingress.class"])) {
+        obj.metadata.annotations["kubernetes.io/ingress.class"] = "nginx";
+    }
+
+    if (! isNew) {
+        delete obj.apiVersion;
+        delete obj.kind;
+        delete obj.status;
+    }
+
+    return obj;
+}
+
+function create_ingress_objects(isNew) {
     for (var i=0;i<cfg_obj.hosts.length;i++) {
-        obj = {
-            "apiVersion": "extensions/v1beta1",
-            "kind": "Ingress",
-            "metadata": {
-                "annotations": {
-                    "kubernetes.io/ingress.class": "nginx",
-                    "nginx.ingress.kubernetes.io/backend-protocol": "https",
-                    "nginx.ingress.kubernetes.io/secure-backends": "true",
-                    "nginx.org/ssl-services": "openunison-" + k8s_obj.metadata.name,
-                    "nginx.ingress.kubernetes.io/affinity": "cookie",
-                    "nginx.ingress.kubernetes.io/session-cookie-name": cfg_obj.hosts[i].ingress_name + "-" + k8s_obj.metadata.name,
-                    "nginx.ingress.kubernetes.io/session-cookie-hash": "sha1"
-                },
-                "name": cfg_obj.hosts[i].ingress_name,
-                "namespace": k8s_namespace
-            },
-            "spec": {
-                "rules": [
-                    
-                ],
-                "tls": [
-                    {
-                        "hosts": [
-                            
-                        ],
-                        "secretName": cfg_obj.hosts[i].secret_name
-                    }
-                ]
-            },
-            "status": {
-                "loadBalancer": {}
-            }
-        };
+        
+        if (cfg_obj.hosts[i].ingress_type === undefined || cfg_obj.hosts[i].ingress_type === "" || cfg_obj.hosts[i].ingress_type === "nginx") {
+            print("Creating an nginx ingress object");
+            obj = create_nginx_object(cfg_obj.hosts[i],isNew);
+        } else {
+            print("unknown ingress type");
+            return;
+        }
 
         for (var j=0;j<cfg_obj.hosts[i].names.length;j++) {
             obj.spec.rules.push(
@@ -80,7 +111,11 @@ function create_ingress_objects() {
             obj.spec.tls[0].hosts.push(cfg_obj.hosts[i].names[j].name);
         }
     
-        k8s.postWS('/apis/extensions/v1beta1/namespaces/' + k8s_namespace + '/ingresses',JSON.stringify(obj));
+        if (isNew) {
+            k8s.postWS('/apis/extensions/v1beta1/namespaces/' + k8s_namespace + '/ingresses',JSON.stringify(obj));
+        } else {
+            k8s.patchWS('/apis/extensions/v1beta1/namespaces/' + k8s_namespace + '/ingresses/' + cfg_obj.hosts[i].ingress_name,JSON.stringify(obj));
+        }
     }
 }
 
@@ -493,6 +528,8 @@ function update_k8s_deployment() {
         create_static_objects();
 
     }
+
+    create_ingress_objects(false);
 
     manageCertMgrJob();
 }

@@ -314,7 +314,7 @@ function create_static_objects() {
     if (k8s.isOpenShift()) {
         deploy_openshift_objects();
     } else {
-        create_ingress_objects();
+        create_ingress_objects(true);
         create_k8s_deployment();
     }
 
