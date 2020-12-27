@@ -270,6 +270,91 @@ function create_k8s_deployment() {
             print(JSON.stringify(obj.spec.template.spec["nodeSelector"]));
         }
 
+        if (! isEmpty(cfg_obj.deployment_data.pull_secret)) {
+            print("Setting a pull secret : " + cfg_obj.deployment_data.pull_secret);
+            obj.spec.template.spec["imagePullSecrets"] = [{"name" : cfg_obj.deployment_data.pull_secret}];
+        }
+
+        if (! isEmpty(cfg_obj.deployment_data.resources)) {
+            print("Setting resources");
+
+            if (! isEmpty(cfg_obj.deployment_data.resources.requests)) {
+                print("Setting requests");
+
+                if (! isEmpty(cfg_obj.deployment_data.resources.requests.memory)) {
+                    print("Setting memory requests");
+
+                    if (isEmpty(obj.spec.template.spec.containers[0].resources)) {
+                        obj.spec.template.spec.containers[0].resources = {};
+                    }
+
+                    if (isEmpty(obj.spec.template.spec.containers[0].resources.requests)) {
+                        obj.spec.template.spec.containers[0].resources.requests = {};
+                    }
+
+                    obj.spec.template.spec.containers[0].resources.requests.memory = cfg_obj.deployment_data.resources.requests.memory;
+
+
+                }
+
+                if (! isEmpty(cfg_obj.deployment_data.resources.requests.cpu)) {
+                    print("Setting cpu requests");
+
+                    if (isEmpty(obj.spec.template.spec.containers[0].resources)) {
+                        obj.spec.template.spec.containers[0].resources = {};
+                    }
+
+                    if (isEmpty(obj.spec.template.spec.containers[0].resources.requests)) {
+                        obj.spec.template.spec.containers[0].resources.requests = {};
+                    }
+
+                    obj.spec.template.spec.containers[0].resources.requests.cpu = cfg_obj.deployment_data.resources.requests.cpu;
+
+
+                }
+
+                
+            }
+
+            if (! isEmpty(cfg_obj.deployment_data.resources.limits)) {
+                print("Setting limits");
+
+                if (! isEmpty(cfg_obj.deployment_data.limits.memory)) {
+                    print("Setting memory limits");
+
+                    if (isEmpty(obj.spec.template.spec.containers[0].resources)) {
+                        obj.spec.template.spec.containers[0].resources = {};
+                    }
+
+                    if (isEmpty(obj.spec.template.spec.containers[0].resources.limits)) {
+                        obj.spec.template.spec.containers[0].resources.limits = {};
+                    }
+
+                    obj.spec.template.spec.containers[0].resources.limits.memory = cfg_obj.deployment_data.resources.limits.memory;
+
+
+                }
+
+                if (! isEmpty(cfg_obj.deployment_data.resources.limits.cpu)) {
+                    print("Setting cpu limits");
+
+                    if (isEmpty(obj.spec.template.spec.containers[0].resources)) {
+                        obj.spec.template.spec.containers[0].resources = {};
+                    }
+
+                    if (isEmpty(obj.spec.template.spec.containers[0].resources.limits)) {
+                        obj.spec.template.spec.containers[0].resources.limits = {};
+                    }
+
+                    obj.spec.template.spec.containers[0].resources.limits.cpu = cfg_obj.deployment_data.resources.limits.cpu;
+
+
+                }
+
+                
+            }
+        }
+
     }
 
     k8s.postWS('/apis/apps/v1/namespaces/' + k8s_namespace + '/deployments',JSON.stringify(obj));
@@ -469,6 +554,91 @@ function update_k8s_deployment() {
                     patch.spec.template.spec["nodeSelector"] = null;
                 }
             }
+
+            if (! isEmpty(cfg_obj.deployment_data.pull_secret)) {
+                print("Setting a pull secret : " + cfg_obj.deployment_data.pull_secret);
+                patch.spec.template.spec["imagePullSecrets"] = [{"name" : cfg_obj.deployment_data.pull_secret}];
+            }
+    
+            if (! isEmpty(cfg_obj.deployment_data.resources)) {
+                print("Setting resources");
+    
+                if (! isEmpty(cfg_obj.deployment_data.resources.requests)) {
+                    print("Setting requests");
+    
+                    if (! isEmpty(cfg_obj.deployment_data.resources.requests.memory)) {
+                        print("Setting memory requests");
+    
+                        if (isEmpty(patch.spec.template.spec.containers[0].resources)) {
+                            patch.spec.template.spec.containers[0].resources = {};
+                        }
+    
+                        if (isEmpty(patch.spec.template.spec.containers[0].resources.requests)) {
+                            patch.spec.template.spec.containers[0].resources.requests = {};
+                        }
+    
+                        patch.spec.template.spec.containers[0].resources.requests.memory = cfg_obj.deployment_data.resources.requests.memory;
+    
+    
+                    }
+    
+                    if (! isEmpty(cfg_obj.deployment_data.resources.requests.cpu)) {
+                        print("Setting cpu requests");
+    
+                        if (isEmpty(patch.spec.template.spec.containers[0].resources)) {
+                            patch.spec.template.spec.containers[0].resources = {};
+                        }
+    
+                        if (isEmpty(patch.spec.template.spec.containers[0].resources.requests)) {
+                            patch.spec.template.spec.containers[0].resources.requests = {};
+                        }
+    
+                        patch.spec.template.spec.containers[0].resources.requests.cpu = cfg_obj.deployment_data.resources.requests.cpu;
+    
+    
+                    }
+    
+                    
+                }
+    
+                if (! isEmpty(cfg_obj.deployment_data.resources.limits)) {
+                    print("Setting limits");
+    
+                    if (! isEmpty(cfg_obj.deployment_data.resources.limits.memory)) {
+                        print("Setting memory limits");
+    
+                        if (isEmpty(patch.spec.template.spec.containers[0].resources)) {
+                            patch.spec.template.spec.containers[0].resources = {};
+                        }
+    
+                        if (isEmpty(patch.spec.template.spec.containers[0].resources.limits)) {
+                            patch.spec.template.spec.containers[0].resources.limits = {};
+                        }
+    
+                        patch.spec.template.spec.containers[0].resources.limits.memory = cfg_obj.deployment_data.resources.limits.memory;
+    
+    
+                    }
+    
+                    if (! isEmpty(cfg_obj.deployment_data.resources.limits.cpu)) {
+                        print("Setting cpu limits");
+    
+                        if (isEmpty(patch.spec.template.spec.containers[0].resources)) {
+                            patch.spec.template.spec.containers[0].resources = {};
+                        }
+    
+                        if (isEmpty(patch.spec.template.spec.containers[0].resources.limits)) {
+                            patch.spec.template.spec.containers[0].resources.limits = {};
+                        }
+    
+                        patch.spec.template.spec.containers[0].resources.limits.cpu = cfg_obj.deployment_data.resources.limits.cpu;
+    
+    
+                    }
+    
+                    
+                }
+            }
         } else {
             disable_tokenapi_sa(patch);
         }
@@ -542,7 +712,7 @@ function delete_activemq() {
     k8s.deleteWS('/api/v1/namespaces/' + k8s_namespace + '/secrets/amq-env-secrets-' + k8s_obj.metadata.name);
     k8s.deleteWS('/api/v1/namespaces/' + k8s_namespace + '/services/amq');
 
-    if (k8s.isOpenShift()) {
+    if (isBuildOpenShift()) {
         k8s.deleteWS("/apis/image.openshift.io/v1/namespaces/" + k8s_namespace + "/imagestreams/amq-" + k8s_obj.metadata.name);
         k8s.deleteWS('/apis/apps.openshift.io/v1/namespaces/' + k8s_namespace + '/deploymentconfigs/amq-' + k8s_obj.metadata.name);
     } else {
@@ -562,7 +732,7 @@ function delete_k8s_deployment() {
     k8s.deleteWS('/api/v1/namespaces/' + k8s_namespace + '/serviceaccounts/openunison-' + k8s_obj.metadata.name);
 
     
-    if (k8s.isOpenShift()) {
+    if (isBuildOpenShift()) {
         k8s.deleteWS('/apis/apps.openshift.io/v1/namespaces/' + k8s_namespace + "/deploymentconfigs/openunison-" + k8s_obj.metadata.name);
         k8s.deleteWS('/apis/build.openshift.io/v1/namespaces/' + k8s_namespace + "/buildconfigs/openunison-" + k8s_obj.metadata.name);
         k8s.deleteWS('/apis/image.openshift.io/v1/namespaces/' + k8s_namespace + "/imagestreams/openunison-" + k8s_obj.metadata.name);

@@ -717,3 +717,18 @@ function isEmpty(obj) {
     }
     return true;
 }
+
+
+function isBuildOpenShift() {
+    if (k8s.isOpenShift()) {
+        ignoreOpenShift = inProp['IGNORE_OPENSHIFT'] == "true";
+        if (ignoreOpenShift) {
+            return false;
+        } else {
+            return true;
+        }
+    } else {
+        return false;
+    }
+}
+

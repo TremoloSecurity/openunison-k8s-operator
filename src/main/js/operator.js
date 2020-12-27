@@ -9,7 +9,7 @@ function on_watch(k8s_event) {
 
         if (generate_openunison_secret(event_json)) {
         
-            if (k8s.isOpenShift()) {
+            if (isBuildOpenShift()) {
 
                 override_image = System.getenv("RELATED_IMAGE_S2I");
 
@@ -46,7 +46,7 @@ function on_watch(k8s_event) {
     } else if (event_json["type"] === "MODIFIED") {
         if (generate_openunison_secret(event_json)) {
 
-            if (k8s.isOpenShift()) {
+            if (isBuildOpenShift()) {
 
                 override_image = System.getenv("RELATED_IMAGE_S2I");
 

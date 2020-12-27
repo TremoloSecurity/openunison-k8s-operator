@@ -271,6 +271,11 @@ function deploy_openshift_objects() {
     
     k8s.postWS('/apis/apps.openshift.io/v1/namespaces/' + k8s_namespace + '/deploymentconfigs',JSON.stringify(ou_deployment));
 
+    create_route();
+
+}
+
+function create_route() {
     for (var i=0;i<cfg_obj.hosts.length;i++) {
         for (var j=0;j<cfg_obj.hosts[i].names.length;j++) {
             ou_route = {
@@ -307,7 +312,6 @@ function deploy_openshift_objects() {
             res = k8s.postWS('/apis/route.openshift.io/v1/namespaces/' +  k8s_namespace   + '/routes',JSON.stringify(ou_route));
         }
     }
-
 }
 
 function deploy_amq_openshift() {

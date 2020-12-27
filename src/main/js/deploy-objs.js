@@ -198,7 +198,7 @@ function create_activemq() {
         k8s.postWS('/api/v1/namespaces/' + k8s_namespace + '/services',JSON.stringify(amq_service));
 
 
-        if (k8s.isOpenShift()) {
+        if (isBuildOpenShift()) {
             deploy_amq_openshift();
         } else {
             deploy_k8s_activemq();
@@ -311,10 +311,15 @@ function create_static_objects() {
 
     k8s.postWS('/api/v1/namespaces/' + k8s_namespace + '/services',JSON.stringify(obj));
 
-    if (k8s.isOpenShift()) {
+    if (isBuildOpenShift()) {
         deploy_openshift_objects();
     } else {
-        create_ingress_objects(true);
+        if (k8s.isOpenShift()) {
+            create_route();
+        } else {
+            create_ingress_objects(true);
+        }
+        
         create_k8s_deployment();
     }
 
