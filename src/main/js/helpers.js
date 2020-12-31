@@ -668,3 +668,67 @@ function generate_openunison_secret(event_json) {
 }
 
 
+/*
+  Checks if the validating webhook for workflows is present, and if it is
+  makes sure that the unison-tls certificate is copied over
+*/
+function update_workflow_validating_webhook_certificate() {
+  wh_uri = '/apis/admissionregistration.k8s.io/v1/validatingwebhookconfigurations/openunison-workflow-validation';
+  wh_lookup_response = k8s.callWS(wh_uri,"",-1); 
+   
+  
+  if (wh_lookup_response.code == 404 || wh_lookup_response.code == 403) {
+    print("no validating webhook, skipping");
+    return;
+  }
+
+  unisonCert = ouKs.getCertificate("unison-tls");
+  if (unisonCert == null) {
+      print("No unison-tls certificate, skipping");
+      return;
+  }
+
+
+  whJson = JSON.parse(wh_lookup_response.data);
+
+  fromSecretCertBase64 = java.util.Base64.getEncoder().encodeToString(CertUtils.exportCert(unisonCert).getBytes("UTF-8"));
+  fromWhCertBase64 = whJson.webhooks[0].clientConfig.caBundle;
+
+  if (fromWhCertBase64 !== fromSecretCertBase64) {
+      print("need to update the webhook");
+      whJson.webhooks[0].clientConfig.caBundle = fromSecretCertBase64;
+      whPatch = JSON.stringify({"webhooks" : whJson.webhooks});
+      k8s.patchWS(wh_uri,whPatch);
+  } else {
+      print("webhook cert unchanged");
+  }
+  
+  
+}
+
+function isEmpty(obj) {
+    if (obj === null) {
+        return true;
+    }
+    
+    for(var key in obj) {
+        if(obj.hasOwnProperty(key))
+            return false;
+    }
+    return true;
+}
+
+
+function isBuildOpenShift() {
+    if (k8s.isOpenShift()) {
+        ignoreOpenShift = inProp['IGNORE_OPENSHIFT'] == "true";
+        if (ignoreOpenShift) {
+            return false;
+        } else {
+            return true;
+        }
+    } else {
+        return false;
+    }
+}
+

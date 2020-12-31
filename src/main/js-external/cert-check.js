@@ -203,7 +203,16 @@ function create_certificate(target_ns,cfg_obj,key_config,secret_info,secret_name
     print("Posting secret");
     k8s.postWS('/api/v1/namespaces/' + target_ns + '/secrets',JSON.stringify(secret_to_create));
 
-    if (key_config.create_data.delete_pods_labels != null && key_config.create_data.delete_pods_labels.length > 0) {
+    
+    if (! isEmpty(key_config.create_data.patch_info)) {
+        print("Patching to push updates");
+        var annotation_value = "";
+        var patch = {"metadata":{"annotations" : {}}};
+
+        patch.metadata.annotations[key_config.create_data.patch_info.annotation_name] = annotation_value;
+        k8s.patchWS(key_config.create_data.patch_info.obj_url,JSON.stringify(patch));
+
+    } else if (key_config.create_data.delete_pods_labels != null && key_config.create_data.delete_pods_labels.length > 0) {
         print("Deleting pods per labels");
         var label_selectors = '';
         for (var ii = 0;ii < key_config.create_data.delete_pods_labels.length;ii++) {

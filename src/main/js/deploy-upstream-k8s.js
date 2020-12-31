@@ -23,41 +23,72 @@ function restart_k8s_dashboard() {
     }
 }
 
-function create_ingress_objects() {
+function create_nginx_object(host,isNew) {
+    obj = {
+        "apiVersion": "extensions/v1beta1",
+        "kind": "Ingress",
+        "metadata": {
+            "annotations": {
+                
+                "nginx.ingress.kubernetes.io/backend-protocol": "https",
+                "nginx.ingress.kubernetes.io/secure-backends": "true",
+                "nginx.org/ssl-services": "openunison-" + k8s_obj.metadata.name,
+                "nginx.ingress.kubernetes.io/affinity": "cookie",
+                "nginx.ingress.kubernetes.io/session-cookie-name": host.ingress_name + "-" + k8s_obj.metadata.name,
+                "nginx.ingress.kubernetes.io/session-cookie-hash": "sha1"
+            },
+            "name": host.ingress_name,
+            "namespace": k8s_namespace
+        },
+        "spec": {
+            "rules": [
+                
+            ],
+            "tls": [
+                {
+                    "hosts": [
+                        
+                    ],
+                    "secretName": host.secret_name
+                }
+            ]
+        },
+        "status": {
+            "loadBalancer": {}
+        }
+    };
+
+    //"kubernetes.io/ingress.class": "nginx",
+
+    if (! isEmpty(host.annotations)) {
+        for (var ii = 0;ii<host.annotations.length;ii++) {
+            obj.metadata.annotations[host.annotations[ii].name] = host.annotations[ii].value;
+        }
+    }
+
+    if (isEmpty(obj.metadata.annotations["kubernetes.io/ingress.class"])) {
+        obj.metadata.annotations["kubernetes.io/ingress.class"] = "nginx";
+    }
+
+    if (! isNew) {
+        delete obj.apiVersion;
+        delete obj.kind;
+        delete obj.status;
+    }
+
+    return obj;
+}
+
+function create_ingress_objects(isNew) {
     for (var i=0;i<cfg_obj.hosts.length;i++) {
-        obj = {
-            "apiVersion": "extensions/v1beta1",
-            "kind": "Ingress",
-            "metadata": {
-                "annotations": {
-                    "kubernetes.io/ingress.class": "nginx",
-                    "nginx.ingress.kubernetes.io/backend-protocol": "https",
-                    "nginx.ingress.kubernetes.io/secure-backends": "true",
-                    "nginx.org/ssl-services": "openunison-" + k8s_obj.metadata.name,
-                    "nginx.ingress.kubernetes.io/affinity": "cookie",
-                    "nginx.ingress.kubernetes.io/session-cookie-name": cfg_obj.hosts[i].ingress_name + "-" + k8s_obj.metadata.name,
-                    "nginx.ingress.kubernetes.io/session-cookie-hash": "sha1"
-                },
-                "name": cfg_obj.hosts[i].ingress_name,
-                "namespace": k8s_namespace
-            },
-            "spec": {
-                "rules": [
-                    
-                ],
-                "tls": [
-                    {
-                        "hosts": [
-                            
-                        ],
-                        "secretName": cfg_obj.hosts[i].secret_name
-                    }
-                ]
-            },
-            "status": {
-                "loadBalancer": {}
-            }
-        };
+        
+        if (cfg_obj.hosts[i].ingress_type === undefined || cfg_obj.hosts[i].ingress_type === "" || cfg_obj.hosts[i].ingress_type === "nginx") {
+            print("Creating an nginx ingress object");
+            obj = create_nginx_object(cfg_obj.hosts[i],isNew);
+        } else {
+            print("unknown ingress type");
+            return;
+        }
 
         for (var j=0;j<cfg_obj.hosts[i].names.length;j++) {
             obj.spec.rules.push(
@@ -80,12 +111,20 @@ function create_ingress_objects() {
             obj.spec.tls[0].hosts.push(cfg_obj.hosts[i].names[j].name);
         }
     
-        k8s.postWS('/apis/extensions/v1beta1/namespaces/' + k8s_namespace + '/ingresses',JSON.stringify(obj));
+        if (isNew) {
+            k8s.postWS('/apis/extensions/v1beta1/namespaces/' + k8s_namespace + '/ingresses',JSON.stringify(obj));
+        } else {
+            k8s.patchWS('/apis/extensions/v1beta1/namespaces/' + k8s_namespace + '/ingresses/' + cfg_obj.hosts[i].ingress_name,JSON.stringify(obj));
+        }
     }
 }
 
 
 function create_k8s_deployment() {
+
+
+
+
     obj = {
         "apiVersion": "apps/v1",
         "kind": "Deployment",
@@ -205,7 +244,240 @@ function create_k8s_deployment() {
         }
     };
 
+    if (! isEmpty(cfg_obj.deployment_data) ) {
+        if (cfg_obj.deployment_data.tokenrequest_api.enabled) {
+            configure_tokenapi_sa(obj);
+        }
+
+        if (! isEmpty(cfg_obj.deployment_data.readiness_probe_command) ) {
+            obj.spec.template.spec.containers[0].readinessProbe.exec.command = cfg_obj.deployment_data.readiness_probe_command;
+        }
+
+        if (! isEmpty(cfg_obj.deployment_data.liveness_probe_command) ) {
+            obj.spec.template.spec.containers[0].livenessProbe.exec.command = cfg_obj.deployment_data.liveness_probe_command;
+        }
+
+        print(cfg_obj.deployment_data.node_selectors);
+        if (! isEmpty(cfg_obj.deployment_data.node_selectors)) {
+            print("setting node selectors");
+            obj.spec.template.spec["nodeSelector"] = {};
+            print(JSON.stringify(obj.spec.template.spec["nodeSelector"]));
+            for (var i = 0;i < cfg_obj.deployment_data.node_selectors.length;i++) {
+                print(cfg_obj.deployment_data.node_selectors[i].name);
+                print(cfg_obj.deployment_data.node_selectors[i].value);
+                obj.spec.template.spec.nodeSelector[cfg_obj.deployment_data.node_selectors[i].name] = cfg_obj.deployment_data.node_selectors[i].value;
+            }
+            print(JSON.stringify(obj.spec.template.spec["nodeSelector"]));
+        }
+
+        if (! isEmpty(cfg_obj.deployment_data.pull_secret)) {
+            print("Setting a pull secret : " + cfg_obj.deployment_data.pull_secret);
+            obj.spec.template.spec["imagePullSecrets"] = [{"name" : cfg_obj.deployment_data.pull_secret}];
+        }
+
+        if (! isEmpty(cfg_obj.deployment_data.resources)) {
+            print("Setting resources");
+
+            if (! isEmpty(cfg_obj.deployment_data.resources.requests)) {
+                print("Setting requests");
+
+                if (! isEmpty(cfg_obj.deployment_data.resources.requests.memory)) {
+                    print("Setting memory requests");
+
+                    if (isEmpty(obj.spec.template.spec.containers[0].resources)) {
+                        obj.spec.template.spec.containers[0].resources = {};
+                    }
+
+                    if (isEmpty(obj.spec.template.spec.containers[0].resources.requests)) {
+                        obj.spec.template.spec.containers[0].resources.requests = {};
+                    }
+
+                    obj.spec.template.spec.containers[0].resources.requests.memory = cfg_obj.deployment_data.resources.requests.memory;
+
+
+                }
+
+                if (! isEmpty(cfg_obj.deployment_data.resources.requests.cpu)) {
+                    print("Setting cpu requests");
+
+                    if (isEmpty(obj.spec.template.spec.containers[0].resources)) {
+                        obj.spec.template.spec.containers[0].resources = {};
+                    }
+
+                    if (isEmpty(obj.spec.template.spec.containers[0].resources.requests)) {
+                        obj.spec.template.spec.containers[0].resources.requests = {};
+                    }
+
+                    obj.spec.template.spec.containers[0].resources.requests.cpu = cfg_obj.deployment_data.resources.requests.cpu;
+
+
+                }
+
+                
+            }
+
+            if (! isEmpty(cfg_obj.deployment_data.resources.limits)) {
+                print("Setting limits");
+
+                if (! isEmpty(cfg_obj.deployment_data.resources.limits.memory)) {
+                    print("Setting memory limits");
+
+                    if (isEmpty(obj.spec.template.spec.containers[0].resources)) {
+                        obj.spec.template.spec.containers[0].resources = {};
+                    }
+
+                    if (isEmpty(obj.spec.template.spec.containers[0].resources.limits)) {
+                        obj.spec.template.spec.containers[0].resources.limits = {};
+                    }
+
+                    obj.spec.template.spec.containers[0].resources.limits.memory = cfg_obj.deployment_data.resources.limits.memory;
+
+
+                }
+
+                if (! isEmpty(cfg_obj.deployment_data.resources.limits.cpu)) {
+                    print("Setting cpu limits");
+
+                    if (isEmpty(obj.spec.template.spec.containers[0].resources)) {
+                        obj.spec.template.spec.containers[0].resources = {};
+                    }
+
+                    if (isEmpty(obj.spec.template.spec.containers[0].resources.limits)) {
+                        obj.spec.template.spec.containers[0].resources.limits = {};
+                    }
+
+                    obj.spec.template.spec.containers[0].resources.limits.cpu = cfg_obj.deployment_data.resources.limits.cpu;
+
+
+                }
+
+                
+            }
+        }
+
+    }
+
     k8s.postWS('/apis/apps/v1/namespaces/' + k8s_namespace + '/deployments',JSON.stringify(obj));
+}
+
+/*
+  Update the deployment for using the TokenAPI for the service account
+*/
+function configure_tokenapi_sa(deplotment) {
+    deplotment.spec.template.spec["automountServiceAccountToken"] = false;
+
+    var found_volumemount = false;
+    for (var ii=0;ii<deplotment.spec.template.spec.containers[0].volumeMounts.length;ii++) {
+        var volumeMount = deplotment.spec.template.spec.containers[0].volumeMounts[ii];
+        print("checking '" + volumeMount.name + "'");
+        if (volumeMount.name == "ou-token") {
+            found_volumemount = true;
+            break;
+        }
+    }
+
+    if (! found_volumemount) {
+        deplotment.spec.template.spec.containers[0].volumeMounts.push(
+            {
+                "mountPath":"/var/run/secrets/tokens",
+                "name":"ou-token"
+            }
+        );
+    }
+
+    var found_volume = false;
+    for (var ii=0;ii<deplotment.spec.template.spec.volumes.length;ii++) {
+        var volume = deplotment.spec.template.spec.volumes[ii];
+        if (volume.name == "ou-token") {
+            found_volume = true;
+        }
+    }
+
+    if (! found_volume) {
+        deplotment.spec.template.spec.volumes.push(
+            {
+                "name": "ou-token",
+                "projected": {
+                    "defaultMode": 420,
+                    "sources": [
+                    {
+                        "serviceAccountToken": {
+                        "audience": cfg_obj.deployment_data.tokenrequest_api.audience,
+                        "expirationSeconds": cfg_obj.deployment_data.tokenrequest_api.expirationSeconds,
+                        "path": "ou-token"
+                        }
+                    },
+                    {
+                        "configMap": {
+                        "items": [
+                            {
+                            "key": "ca.crt",
+                            "path": "ca.crt"
+                            }
+                        ],
+                        "name": "kube-cacrt"
+                        }
+                    }
+                    ]
+                }
+                }
+        );
+    }
+    //get the secret's CA cert
+    k8s_api_cert = NetUtil.downloadFile("file:///var/run/secrets/kubernetes.io/serviceaccount/ca.crt");
+
+    results = k8s.callWS("/api/v1/namespaces/" + k8s_namespace + "/configmaps/kube-cacrt","",-1);
+
+    if (results.code == 200) {
+        //patch
+        cacrt_configmap = {
+            "data": {
+                "ca.crt": k8s_api_cert
+            }
+        }
+
+        print("Patching API server configmap");
+        k8s.patchWS("/api/v1/namespaces/" + k8s_namespace + "/configmaps/kube-cacrt",JSON.stringify(cacrt_configmap));
+    } else {
+        //create the secret
+        cacrt_configmap = {
+            "apiVersion": "v1",
+            "data": {
+                "ca.crt": k8s_api_cert
+            },
+            "kind": "ConfigMap",
+            "metadata": {
+                "name": "kube-cacrt",
+                "namespace": k8s_namespace
+            }
+        }
+
+        print("Creating API server configmap");
+        k8s.postWS("/api/v1/namespaces/" + k8s_namespace + "/configmaps",JSON.stringify(cacrt_configmap));
+        
+    };
+}
+
+function disable_tokenapi_sa(deplotment) {
+    deplotment.spec.template.spec["automountServiceAccountToken"] = true;
+    
+    for (var ii=0;ii<deplotment.spec.template.spec.containers[0].volumeMounts.length;ii++) {
+        var volumeMount = deplotment.spec.template.spec.containers[0].volumeMounts[ii];
+        print("checking '" + volumeMount.name + "'");
+        if (volumeMount.name == "ou-token") {
+            print("Removing");
+            deplotment.spec.template.spec.containers[0].volumeMounts.splice(ii,1);
+            print("after remove : '" + JSON.stringify(deplotment.spec.template.spec.containers[0].volumeMounts) + "'");
+            break;
+        }
+    }
+    
+    for (var ii=0;ii<deplotment.spec.template.spec.volumes.length;ii++) {
+        var volume = deplotment.spec.template.spec.volumes[ii];
+        if (volume.name == "ou-token") {
+            deplotment.spec.template.spec.volumes.splice(ii,1);
+        }
+    }
 }
 
 /*
@@ -243,6 +515,135 @@ function update_k8s_deployment() {
             
             patch.spec.template.spec.containers[0].image = cfg_obj.image;
         }
+
+
+        print("checking if need to update deployment info");
+        if (! isEmpty(cfg_obj.deployment_data) ) {
+            print("There's deployment data");
+            if (cfg_obj.deployment_data.tokenrequest_api.enabled) {
+                print("Enabling the TokenRequest API");
+                configure_tokenapi_sa(patch);
+                
+            } else {
+                disable_tokenapi_sa(patch); 
+            }
+
+
+            if (! isEmpty(cfg_obj.deployment_data.readiness_probe_command) ) {
+                patch.spec.template.spec.containers[0].readinessProbe.exec.command = cfg_obj.deployment_data.readiness_probe_command;
+            }
+    
+            if (! isEmpty(cfg_obj.deployment_data.liveness_probe_command) ) {
+                patch.spec.template.spec.containers[0].livenessProbe.exec.command = cfg_obj.deployment_data.liveness_probe_command;
+            }
+    
+            
+            if (cfg_obj.deployment_data.node_selectors !== undefined ) {
+                print("setting node selectors");
+                
+                patch.spec.template.spec["nodeSelector"] = {};
+                
+                for (var i = 0;i < cfg_obj.deployment_data.node_selectors.length;i++) {
+                    
+                    patch.spec.template.spec.nodeSelector[cfg_obj.deployment_data.node_selectors[i].name] = cfg_obj.deployment_data.node_selectors[i].value;
+                }
+                
+
+                if (isEmpty(patch.spec.template.spec["nodeSelector"])) {
+                    
+                    patch.spec.template.spec["nodeSelector"] = null;
+                }
+            }
+
+            if (! isEmpty(cfg_obj.deployment_data.pull_secret)) {
+                print("Setting a pull secret : " + cfg_obj.deployment_data.pull_secret);
+                patch.spec.template.spec["imagePullSecrets"] = [{"name" : cfg_obj.deployment_data.pull_secret}];
+            }
+    
+            if (! isEmpty(cfg_obj.deployment_data.resources)) {
+                print("Setting resources");
+    
+                if (! isEmpty(cfg_obj.deployment_data.resources.requests)) {
+                    print("Setting requests");
+    
+                    if (! isEmpty(cfg_obj.deployment_data.resources.requests.memory)) {
+                        print("Setting memory requests");
+    
+                        if (isEmpty(patch.spec.template.spec.containers[0].resources)) {
+                            patch.spec.template.spec.containers[0].resources = {};
+                        }
+    
+                        if (isEmpty(patch.spec.template.spec.containers[0].resources.requests)) {
+                            patch.spec.template.spec.containers[0].resources.requests = {};
+                        }
+    
+                        patch.spec.template.spec.containers[0].resources.requests.memory = cfg_obj.deployment_data.resources.requests.memory;
+    
+    
+                    }
+    
+                    if (! isEmpty(cfg_obj.deployment_data.resources.requests.cpu)) {
+                        print("Setting cpu requests");
+    
+                        if (isEmpty(patch.spec.template.spec.containers[0].resources)) {
+                            patch.spec.template.spec.containers[0].resources = {};
+                        }
+    
+                        if (isEmpty(patch.spec.template.spec.containers[0].resources.requests)) {
+                            patch.spec.template.spec.containers[0].resources.requests = {};
+                        }
+    
+                        patch.spec.template.spec.containers[0].resources.requests.cpu = cfg_obj.deployment_data.resources.requests.cpu;
+    
+    
+                    }
+    
+                    
+                }
+    
+                if (! isEmpty(cfg_obj.deployment_data.resources.limits)) {
+                    print("Setting limits");
+    
+                    if (! isEmpty(cfg_obj.deployment_data.resources.limits.memory)) {
+                        print("Setting memory limits");
+    
+                        if (isEmpty(patch.spec.template.spec.containers[0].resources)) {
+                            patch.spec.template.spec.containers[0].resources = {};
+                        }
+    
+                        if (isEmpty(patch.spec.template.spec.containers[0].resources.limits)) {
+                            patch.spec.template.spec.containers[0].resources.limits = {};
+                        }
+    
+                        patch.spec.template.spec.containers[0].resources.limits.memory = cfg_obj.deployment_data.resources.limits.memory;
+    
+    
+                    }
+    
+                    if (! isEmpty(cfg_obj.deployment_data.resources.limits.cpu)) {
+                        print("Setting cpu limits");
+    
+                        if (isEmpty(patch.spec.template.spec.containers[0].resources)) {
+                            patch.spec.template.spec.containers[0].resources = {};
+                        }
+    
+                        if (isEmpty(patch.spec.template.spec.containers[0].resources.limits)) {
+                            patch.spec.template.spec.containers[0].resources.limits = {};
+                        }
+    
+                        patch.spec.template.spec.containers[0].resources.limits.cpu = cfg_obj.deployment_data.resources.limits.cpu;
+    
+    
+                    }
+    
+                    
+                }
+            }
+        } else {
+            disable_tokenapi_sa(patch);
+        }
+        
+        
 
         k8s.patchWS('/apis/apps/v1/namespaces/' + k8s_namespace + "/deployments/openunison-" + k8s_obj.metadata.name,JSON.stringify(patch));
 
@@ -298,6 +699,8 @@ function update_k8s_deployment() {
 
     }
 
+    create_ingress_objects(false);
+
     manageCertMgrJob();
 }
 
@@ -309,7 +712,7 @@ function delete_activemq() {
     k8s.deleteWS('/api/v1/namespaces/' + k8s_namespace + '/secrets/amq-env-secrets-' + k8s_obj.metadata.name);
     k8s.deleteWS('/api/v1/namespaces/' + k8s_namespace + '/services/amq');
 
-    if (k8s.isOpenShift()) {
+    if (isBuildOpenShift()) {
         k8s.deleteWS("/apis/image.openshift.io/v1/namespaces/" + k8s_namespace + "/imagestreams/amq-" + k8s_obj.metadata.name);
         k8s.deleteWS('/apis/apps.openshift.io/v1/namespaces/' + k8s_namespace + '/deploymentconfigs/amq-' + k8s_obj.metadata.name);
     } else {
@@ -329,7 +732,7 @@ function delete_k8s_deployment() {
     k8s.deleteWS('/api/v1/namespaces/' + k8s_namespace + '/serviceaccounts/openunison-' + k8s_obj.metadata.name);
 
     
-    if (k8s.isOpenShift()) {
+    if (isBuildOpenShift()) {
         k8s.deleteWS('/apis/apps.openshift.io/v1/namespaces/' + k8s_namespace + "/deploymentconfigs/openunison-" + k8s_obj.metadata.name);
         k8s.deleteWS('/apis/build.openshift.io/v1/namespaces/' + k8s_namespace + "/buildconfigs/openunison-" + k8s_obj.metadata.name);
         k8s.deleteWS('/apis/image.openshift.io/v1/namespaces/' + k8s_namespace + "/imagestreams/openunison-" + k8s_obj.metadata.name);
@@ -551,3 +954,4 @@ function deploy_k8s_activemq() {
 
      print(k8s.postWS('/apis/apps/v1/namespaces/' + k8s_namespace + '/deployments',JSON.stringify(amq_deployment_config)).data);
 }
+
