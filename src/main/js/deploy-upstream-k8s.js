@@ -319,7 +319,7 @@ function create_k8s_deployment() {
             if (! isEmpty(cfg_obj.deployment_data.resources.limits)) {
                 print("Setting limits");
 
-                if (! isEmpty(cfg_obj.deployment_data.limits.memory)) {
+                if (! isEmpty(cfg_obj.deployment_data.resources.limits.memory)) {
                     print("Setting memory limits");
 
                     if (isEmpty(obj.spec.template.spec.containers[0].resources)) {
