@@ -241,7 +241,7 @@ function create_certificate(target_ns,cfg_obj,key_config,secret_info,secret_name
 
 
 print("Loading openunisons");
-uriBase = '/apis/openunison.tremolo.io/v1/namespaces/' + target_ns + '/openunisons';
+uriBase = '/apis/openunison.tremolo.io/v1/namespaces/openunison/openunisons';
 search_res = k8s.callWS(uriBase);
 print(search_res);
 if (search_res.code == 200) {
