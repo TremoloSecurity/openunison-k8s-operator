@@ -241,7 +241,8 @@ function create_certificate(target_ns,cfg_obj,key_config,secret_info,secret_name
 
 
 print("Loading openunisons");
-search_res = k8s.callWS('/apis/openunison.tremolo.io/v1/namespaces/openunison/openunisons');
+uriBase = '/apis/openunison.tremolo.io/v1/namespaces/' + target_ns + '/openunisons';
+search_res = k8s.callWS(uriBase);
 print(search_res);
 if (search_res.code == 200) {
     print("openunisons found");
@@ -269,7 +270,9 @@ if (search_res.code == 200) {
                 }
         };
 
-        k8s.patchWS(openunison.metadata.selfLink,JSON.stringify(patch));
+        selfLink = selfLink + "/" + openunison.metadata.name;
+
+        k8s.patchWS(selfLink,JSON.stringify(patch));
     }
 } else {
     print("Error - could not load openunisons - " + JSON.stringify(search_res));

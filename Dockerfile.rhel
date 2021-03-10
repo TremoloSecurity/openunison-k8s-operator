@@ -4,7 +4,7 @@ MAINTAINER Tremolo Security, Inc. - Docker <docker@tremolosecurity.com>
 
 ENV BUILDER_VERSION=1.0 \
     JDK_VERSION=1.8.0  \
-    OPENUNISON_OPERATOR_VERSION=1.0.0 
+    OPENUNISON_OPERATOR_VERSION=1.2.0 
 
 LABEL name="OpenUnison Operator" \
       vendor="Tremolo Security, Inc." \

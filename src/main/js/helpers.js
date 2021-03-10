@@ -11,7 +11,7 @@ function props_from_crd() {
         }
     } 
 
-    props["K8S_SELF_LINK"] = k8s_obj.metadata.selfLink;
+    props["K8S_SELF_LINK"] = selfLink;
 
     return props;
 
@@ -576,7 +576,9 @@ function generate_openunison_secret(event_json) {
     import_saml_idps();
 
     print("Importing CACerts");
-    CertUtils.mergeCaCerts(ouKs);
+    var newCaCerts = CertUtils.mergeCaCerts(ouKs);
+
+    print("New cacerts generated : " + newCaCerts);
 
 
     string_for_hash = java.util.Base64.getEncoder().encodeToString(k8s.json2yaml(JSON.stringify(cfg_obj.openunison_network_configuration) ).getBytes("UTF-8")  ) + k8s.encodeMap(inProp);
@@ -628,7 +630,8 @@ function generate_openunison_secret(event_json) {
                 "data":{
                     "openunison.yaml": java.util.Base64.getEncoder().encodeToString(k8s.json2yaml(JSON.stringify(cfg_obj.openunison_network_configuration) ).getBytes("UTF-8")  ),
                     "ou.env" : k8s.encodeMap(inProp),
-                    "unisonKeyStore.p12" : CertUtils.encodeKeyStore(ouKs,ksPassword)
+                    "unisonKeyStore.p12" : CertUtils.encodeKeyStore(ouKs,ksPassword),
+                    "cacerts.jks" : CertUtils.encodeKeyStore(newCaCerts,"changeit")
                     
                 }
             };
@@ -639,6 +642,7 @@ function generate_openunison_secret(event_json) {
         }
 
     } else {
+        print("new cacerts : " + newCaCerts);
         //create a new secret
         new_secret = {
             "apiVersion":"v1",
@@ -654,7 +658,8 @@ function generate_openunison_secret(event_json) {
             "data":{
                 "openunison.yaml": java.util.Base64.getEncoder().encodeToString(k8s.json2yaml(JSON.stringify(cfg_obj.openunison_network_configuration) ).getBytes("UTF-8")  ),
                 "ou.env" : k8s.encodeMap(inProp),
-                "unisonKeyStore.p12" : CertUtils.encodeKeyStore(ouKs,ksPassword)
+                "unisonKeyStore.p12" : CertUtils.encodeKeyStore(ouKs,ksPassword),
+                "cacerts.jks" : CertUtils.encodeKeyStore(newCaCerts,"changeit")
                 
             }
         };

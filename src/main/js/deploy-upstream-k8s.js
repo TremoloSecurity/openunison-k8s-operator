@@ -1,27 +1,4 @@
-/*
-    Kill the dashboard pod to 
-*/
-function restart_k8s_dashboard() {
-    print("Restarting the dashboard");
-    res = k8s.callWS('/api/v1/namespaces/kube-system/pods');
-    pods = JSON.parse(res.data);
 
-    k8s_db_uri = null;
-
-    print("Looking for the dashboard");
-    for (i=0;i<pods.items.length;i++) {
-        pod = pods.items[i];
-        if (pod.metadata.name.startsWith("kubernetes-dashboard")) {
-            print("Dashboard found");
-            k8s_db_uri = pod.metadata.selfLink;
-        }
-    }
-
-    if (k8s_db_uri != null) {
-        print("Deleting the pod");
-        k8s.deleteWS(k8s_db_uri);
-    }
-}
 
 function create_nginx_object(host,isNew) {
     obj = {
@@ -166,7 +143,7 @@ function create_k8s_deployment() {
                             "env": [
                                 {
                                     "name": "JAVA_OPTS",
-                                    "value": "-Djava.awt.headless=true -Djava.security.egd=file:/dev/./urandom -DunisonEnvironmentFile=/etc/openunison/ou.env -Djavax.net.ssl.trustStore=/etc/openunison/unisonKeyStore.p12"
+                                    "value": "-Djava.awt.headless=true -Djava.security.egd=file:/dev/./urandom -DunisonEnvironmentFile=/etc/openunison/ou.env -Djavax.net.ssl.trustStore=/etc/openunison/cacerts.jks"
                                 },
                                 {
                                     "name": "fortriggerupdates",
