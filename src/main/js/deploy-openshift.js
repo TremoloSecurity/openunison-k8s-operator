@@ -249,7 +249,7 @@ function deploy_openshift_objects() {
                             "env": [
                                 {
                                     "name": "JAVA_OPTS",
-                                    "value": "-Djava.awt.headless=true -Djava.security.egd=file:/dev/./urandom\n-DunisonEnvironmentFile=/etc/openunison/ou.env"
+                                    "value": "-Djava.awt.headless=true -Djava.security.egd=file:/dev/./urandom\n-DunisonEnvironmentFile=/etc/openunison/ou.env -Djavax.net.ssl.trustStore=/etc/openunison/cacerts.jks"
                                 }
                             ]
                         }
