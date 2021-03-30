@@ -75,7 +75,7 @@ function create_ingress_objects(isNew) {
                         "paths": [
                             {
                                 "backend": {
-                                    "serviceName": "openunison-" + k8s_obj.metadata.name,
+                                    "serviceName": get_service_name(k8s_obj,cfg_obj.hosts[i].names[j]),
                                     "servicePort": 443
                                 },
                                 "path": "/"
@@ -93,6 +93,17 @@ function create_ingress_objects(isNew) {
         } else {
             k8s.patchWS('/apis/extensions/v1beta1/namespaces/' + k8s_namespace + '/ingresses/' + cfg_obj.hosts[i].ingress_name,JSON.stringify(obj));
         }
+    }
+}
+
+function get_service_name(k8s_obj,hostname) {
+    print("host info : " + JSON.stringify(hostname));
+    if (isEmpty(hostname.service_name)) {
+        print("no service name");
+        return "openunison-" + k8s_obj.metadata.name;
+    } else {
+        print("returning service name");
+        return hostname.service_name;
     }
 }
 
