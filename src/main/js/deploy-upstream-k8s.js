@@ -232,6 +232,36 @@ function create_k8s_deployment() {
         }
     };
 
+
+    if (! isEmpty(cfg_obj.myvd_configmap)) {
+        print("found MyVD configuration");
+
+        //add configmap
+        obj.spec.template.spec.containers[0].volumeMounts.push(
+            {
+                "name": "myvd-volume",
+                "mountPath": "/etc/myvd",
+                "readOnly": true
+            }
+        );
+
+        obj.spec.template.spec.volumes.push(
+            {
+                "name":"myvd-volume",
+                "configMap":{
+                    "name": cfg_obj.myvd_configmap
+                }
+            }
+        );
+
+        
+
+        
+
+
+
+    }
+
     if (! isEmpty(cfg_obj.deployment_data) ) {
         if (cfg_obj.deployment_data.tokenrequest_api.enabled) {
             configure_tokenapi_sa(obj);
@@ -502,6 +532,62 @@ function update_k8s_deployment() {
             print("Changing the image");
             
             patch.spec.template.spec.containers[0].image = cfg_obj.image;
+        }
+
+        var foundVolumeMount = -1;
+        for (var i=0;i<patch.spec.template.spec.containers[0].volumeMounts.length;i++) {
+            mount = patch.spec.template.spec.containers[0].volumeMounts[i];
+            if (mount.name == 'myvd-volume') {
+                foundVolumeMount = i;
+            }
+        }
+
+        var foundVolume = -1;
+        for (var i=0;i<patch.spec.template.spec.volumes.length;i++) {
+            mount = patch.spec.template.spec.volumes[i];
+            if (mount.name == 'myvd-volume') {
+                foundVolume = i;
+            }
+        }
+
+
+
+        if (isEmpty(cfg_obj.myvd_configmap)) {
+            print("No myvd configuration");
+
+            if (foundVolumeMount > 0) {
+                print("Removing existing configmap mount");
+                patch.spec.template.spec.containers[0].volumeMounts.splice(foundVolumeMount,1);
+                patch.spec.template.spec.volumes.splice(foundVolume,1);
+
+            } else {
+                print("No MyVD Configmap to remove");  
+            }
+            
+            
+    
+        } else {
+            print("found MyVD configuration");
+    
+            if (foundVolumeMount == -1) {
+                //add configmap
+                patch.spec.template.spec.containers[0].volumeMounts.push(
+                    {
+                        "name": "myvd-volume",
+                        "mountPath": "/etc/myvd",
+                        "readOnly": true
+                    }
+                );
+        
+                patch.spec.template.spec.volumes.push(
+                    {
+                        "name":"myvd-volume",
+                        "configMap":{
+                            "name": cfg_obj.myvd_configmap
+                        }
+                    }
+                );
+            }
         }
 
 
