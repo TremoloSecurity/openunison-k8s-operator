@@ -63,7 +63,33 @@ function create_ingress_objects(isNew) {
             print("Creating an nginx ingress object");
             obj = create_nginx_object(cfg_obj.hosts[i],isNew);
         } else {
-            print("unknown ingress type");
+
+            if (cfg_obj.hosts[i].ingress_type === "istio") {
+                print("istio, not creating ingress but patching the service");
+
+                service_response = k8s.callWS("/api/v1/namespaces/" + target_ns + "/services/openunison-" + k8s_obj.metadata.name,"",-1);
+                if (service_response.code == 200) {
+                    service = JSON.parse(service_response.data);
+                    for (var j = 0;j<service.spec.ports.length;j++) {
+                        if (service.spec.ports[j].name === "openunison-secure-" + k8s_obj.metadata.name) {
+                            service.spec.ports[j].name = "https-" + k8s_obj.metadata.name;
+                        } else if (service.spec.ports[j].name === "openunison-insecure-" + k8s_obj.metadata.name) {
+                            service.spec.ports[j].name = "http-" + k8s_obj.metadata.name;
+                        }
+                    }
+
+                    var svc_obj = {
+                        "spec" : service.spec
+                    };
+                    
+                    System.out.println(k8s.patchWS("/api/v1/namespaces/" + target_ns + "/services/openunison-" + k8s_obj.metadata.name,JSON.stringify(svc_obj)));
+                }
+
+            } else {
+                print("unknown ingress type");
+            }
+
+            
             return;
         }
 
@@ -145,6 +171,7 @@ function create_k8s_deployment() {
                     "creationTimestamp": null,
                     "labels": {
                         "application": "openunison-" + k8s_obj.metadata.name,
+                        "app": "openunison-" + k8s_obj.metadata.name,
                         "operated-by": "openunison-operator"
                     }
                 },
@@ -231,6 +258,36 @@ function create_k8s_deployment() {
             }
         }
     };
+
+
+    if (! isEmpty(cfg_obj.myvd_configmap)) {
+        print("found MyVD configuration");
+
+        //add configmap
+        obj.spec.template.spec.containers[0].volumeMounts.push(
+            {
+                "name": "myvd-volume",
+                "mountPath": "/etc/myvd",
+                "readOnly": true
+            }
+        );
+
+        obj.spec.template.spec.volumes.push(
+            {
+                "name":"myvd-volume",
+                "configMap":{
+                    "name": cfg_obj.myvd_configmap
+                }
+            }
+        );
+
+        
+
+        
+
+
+
+    }
 
     if (! isEmpty(cfg_obj.deployment_data) ) {
         if (cfg_obj.deployment_data.tokenrequest_api.enabled) {
@@ -502,6 +559,62 @@ function update_k8s_deployment() {
             print("Changing the image");
             
             patch.spec.template.spec.containers[0].image = cfg_obj.image;
+        }
+
+        var foundVolumeMount = -1;
+        for (var i=0;i<patch.spec.template.spec.containers[0].volumeMounts.length;i++) {
+            mount = patch.spec.template.spec.containers[0].volumeMounts[i];
+            if (mount.name == 'myvd-volume') {
+                foundVolumeMount = i;
+            }
+        }
+
+        var foundVolume = -1;
+        for (var i=0;i<patch.spec.template.spec.volumes.length;i++) {
+            mount = patch.spec.template.spec.volumes[i];
+            if (mount.name == 'myvd-volume') {
+                foundVolume = i;
+            }
+        }
+
+
+
+        if (isEmpty(cfg_obj.myvd_configmap)) {
+            print("No myvd configuration");
+
+            if (foundVolumeMount > 0) {
+                print("Removing existing configmap mount");
+                patch.spec.template.spec.containers[0].volumeMounts.splice(foundVolumeMount,1);
+                patch.spec.template.spec.volumes.splice(foundVolume,1);
+
+            } else {
+                print("No MyVD Configmap to remove");  
+            }
+            
+            
+    
+        } else {
+            print("found MyVD configuration");
+    
+            if (foundVolumeMount == -1) {
+                //add configmap
+                patch.spec.template.spec.containers[0].volumeMounts.push(
+                    {
+                        "name": "myvd-volume",
+                        "mountPath": "/etc/myvd",
+                        "readOnly": true
+                    }
+                );
+        
+                patch.spec.template.spec.volumes.push(
+                    {
+                        "name":"myvd-volume",
+                        "configMap":{
+                            "name": cfg_obj.myvd_configmap
+                        }
+                    }
+                );
+            }
         }
 
 

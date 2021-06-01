@@ -575,6 +575,13 @@ function generate_openunison_secret(event_json) {
 
     import_saml_idps();
 
+
+    if (! isEmpty(cfg_obj.myvd_configmap)) {
+        props["MYVD_CONFIG_PATH"] = "/etc/myvd/myvd.conf";
+    } else {
+        props["MYVD_CONFIG_PATH"] = "WEB-INF/myvd.conf";
+    }
+
     print("Importing CACerts");
     var newCaCerts = CertUtils.mergeCaCerts(ouKs);
 
@@ -701,7 +708,9 @@ function update_workflow_validating_webhook_certificate() {
 
   if (fromWhCertBase64 !== fromSecretCertBase64) {
       print("need to update the webhook");
-      whJson.webhooks[0].clientConfig.caBundle = fromSecretCertBase64;
+      for (var i = 0;i < whJson.webhooks.length;i++) {
+        whJson.webhooks[i].clientConfig.caBundle = fromSecretCertBase64;
+      }
       whPatch = JSON.stringify({"webhooks" : whJson.webhooks});
       k8s.patchWS(wh_uri,whPatch);
   } else {
