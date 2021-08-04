@@ -2,7 +2,7 @@
 
 function create_nginx_object(host,isNew) {
     obj = {
-        "apiVersion": "extensions/v1beta1",
+        "apiVersion": "networking.k8s.io/v1",
         "kind": "Ingress",
         "metadata": {
             "annotations": {
@@ -101,10 +101,16 @@ function create_ingress_objects(isNew) {
                         "paths": [
                             {
                                 "backend": {
-                                    "serviceName": get_service_name(k8s_obj,cfg_obj.hosts[i].names[j]),
-                                    "servicePort": 443
+
+                                    "service": {
+                                        "name": get_service_name(k8s_obj,cfg_obj.hosts[i].names[j]),
+                                        "port": {
+                                            "number" : 443
+                                        }
+                                    }
                                 },
-                                "path": "/"
+                                "path": "/",
+                                "pathType": "Prefix"
                             }
                         ]
                     }
@@ -115,9 +121,9 @@ function create_ingress_objects(isNew) {
         }
     
         if (isNew) {
-            k8s.postWS('/apis/extensions/v1beta1/namespaces/' + k8s_namespace + '/ingresses',JSON.stringify(obj));
+            k8s.postWS('/apis/networking.k8s.io/v1/namespaces/' + k8s_namespace + '/ingresses',JSON.stringify(obj));
         } else {
-            k8s.patchWS('/apis/extensions/v1beta1/namespaces/' + k8s_namespace + '/ingresses/' + cfg_obj.hosts[i].ingress_name,JSON.stringify(obj));
+            k8s.patchWS('/apis/networking.k8s.io/v1/namespaces/' + k8s_namespace + '/ingresses/' + cfg_obj.hosts[i].ingress_name,JSON.stringify(obj));
         }
     }
 }
