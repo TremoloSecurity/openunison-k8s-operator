@@ -57,6 +57,15 @@ function create_nginx_object(host,isNew) {
 }
 
 function create_ingress_objects(isNew) {
+
+    // check to see if the helm chart created an ingress.  if so we'll just use that
+
+    ingress_response = k8s.callWS("/apis/networking.k8s.io/v1/namespaces/" + target_ns + "/ingresses/openunison-" + k8s_obj.metadata.name,"",0);
+    if (ingress_response.code == 200) {
+        System.out.println("Ingress already exists, not creating");
+        return;
+    }
+
     for (var i=0;i<cfg_obj.hosts.length;i++) {
         
         if (cfg_obj.hosts[i].ingress_type === undefined || cfg_obj.hosts[i].ingress_type === "" || cfg_obj.hosts[i].ingress_type === "nginx") {
