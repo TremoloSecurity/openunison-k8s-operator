@@ -685,13 +685,25 @@ function generate_openunison_secret(event_json) {
   makes sure that the unison-tls certificate is copied over
 */
 function update_workflow_validating_webhook_certificate() {
+  wh_uri_ns = '/apis/admissionregistration.k8s.io/v1/validatingwebhookconfigurations/openunison-workflow-validation-' + k8s_obj.metadata.name;
   wh_uri = '/apis/admissionregistration.k8s.io/v1/validatingwebhookconfigurations/openunison-workflow-validation';
-  wh_lookup_response = k8s.callWS(wh_uri,"",-1); 
+
+  print("looking up '" + wh_uri_ns + "'");
+
+  wh_lookup_response = k8s.callWS(wh_uri_ns,"",-1); 
    
+  print(wh_lookup_response);
   
   if (wh_lookup_response.code == 404 || wh_lookup_response.code == 403) {
-    print("no validating webhook, skipping");
-    return;
+    
+    wh_lookup_response = k8s.callWS(wh_uri,"",-1); 
+    
+    if (wh_lookup_response.code == 404 || wh_lookup_response.code == 403) {
+      print("no validating webhook, skipping");
+      return;
+    }
+  } else {
+    wh_uri = wh_uri_ns;
   }
 
   unisonCert = ouKs.getCertificate("unison-tls");
