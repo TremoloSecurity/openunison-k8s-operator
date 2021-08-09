@@ -1,8 +1,8 @@
 
 
-function create_nginx_object(host,isNew) {
+function create_nginx_object(host,isNew,isV1) {
     obj = {
-        "apiVersion": "networking.k8s.io/v1",
+        "apiVersion": isV1 ? "networking.k8s.io/v1" : "extensions/v1beta1",
         "kind": "Ingress",
         "metadata": {
             "annotations": {
@@ -58,19 +58,35 @@ function create_nginx_object(host,isNew) {
 
 function create_ingress_objects(isNew) {
 
-    // check to see if the helm chart created an ingress.  if so we'll just use that
+    runningV1 = true;
 
-    ingress_response = k8s.callWS("/apis/networking.k8s.io/v1/namespaces/" + target_ns + "/ingresses/openunison-" + k8s_obj.metadata.name,"",0);
-    if (ingress_response.code == 200) {
-        System.out.println("Ingress already exists, not creating");
-        return;
+    // first check look
+
+    ingress_response = k8s.callWS("/apis/networking.k8s.io/v1/namespaces/" + target_ns + "/ingresses","",0);
+
+    if (ingress_response.code == 404) {
+        runningV1 = false;
+    }
+
+
+    
+
+    if (runningV1) {
+        // check to see if the helm chart created an ingress.  if so we'll just use that
+        ingress_response = k8s.callWS("/apis/networking.k8s.io/v1/namespaces/" + target_ns + "/ingresses/openunison-" + k8s_obj.metadata.name,"",0);
+     
+        if (ingress_response.code == 200) {
+            System.out.println("Ingress already exists, not creating");
+            return;
+        }
+
     }
 
     for (var i=0;i<cfg_obj.hosts.length;i++) {
         
         if (cfg_obj.hosts[i].ingress_type === undefined || cfg_obj.hosts[i].ingress_type === "" || cfg_obj.hosts[i].ingress_type === "nginx") {
             print("Creating an nginx ingress object");
-            obj = create_nginx_object(cfg_obj.hosts[i],isNew);
+            obj = create_nginx_object(cfg_obj.hosts[i],isNew,runningV1);
         } else {
 
             if (cfg_obj.hosts[i].ingress_type === "istio") {
@@ -102,37 +118,70 @@ function create_ingress_objects(isNew) {
             return;
         }
 
-        for (var j=0;j<cfg_obj.hosts[i].names.length;j++) {
-            obj.spec.rules.push(
-                {
-                    "host": cfg_obj.hosts[i].names[j].name,
-                    "http": {
-                        "paths": [
-                            {
-                                "backend": {
+        if (runningV1) {
+            for (var j=0;j<cfg_obj.hosts[i].names.length;j++) {
+                obj.spec.rules.push(
+                    {
+                        "host": cfg_obj.hosts[i].names[j].name,
+                        "http": {
+                            "paths": [
+                                {
+                                    "backend": {
 
-                                    "service": {
-                                        "name": get_service_name(k8s_obj,cfg_obj.hosts[i].names[j]),
-                                        "port": {
-                                            "number" : 443
+                                        "service": {
+                                            "name": get_service_name(k8s_obj,cfg_obj.hosts[i].names[j]),
+                                            "port": {
+                                                "number" : 443
+                                            }
                                         }
-                                    }
-                                },
-                                "path": "/",
-                                "pathType": "Prefix"
-                            }
-                        ]
+                                    },
+                                    "path": "/",
+                                    "pathType": "Prefix"
+                                }
+                            ]
+                        }
                     }
-                }
-            );
+                );
 
-            obj.spec.tls[0].hosts.push(cfg_obj.hosts[i].names[j].name);
+                obj.spec.tls[0].hosts.push(cfg_obj.hosts[i].names[j].name);
+            }
+        } else {
+            for (var j=0;j<cfg_obj.hosts[i].names.length;j++) {
+                obj.spec.rules.push(
+                    {
+                        "host": cfg_obj.hosts[i].names[j].name,
+                        "http": {
+                            "paths": [
+                                {
+                                    "backend": {
+                                        "serviceName": get_service_name(k8s_obj,cfg_obj.hosts[i].names[j]),
+                                        "servicePort": 443,
+                                        
+                                    },
+                                    "path": "/",
+                                    
+                                }
+                            ]
+                        }
+                    }
+                );
+
+                obj.spec.tls[0].hosts.push(cfg_obj.hosts[i].names[j].name);
+            }
         }
     
         if (isNew) {
-            k8s.postWS('/apis/networking.k8s.io/v1/namespaces/' + k8s_namespace + '/ingresses',JSON.stringify(obj));
+            if (runningV1) {
+                k8s.postWS('/apis/networking.k8s.io/v1/namespaces/' + k8s_namespace + '/ingresses',JSON.stringify(obj));
+            } else {
+                k8s.postWS('/apis/extensions/v1beta1/namespaces/' + k8s_namespace + '/ingresses',JSON.stringify(obj));
+            }
         } else {
-            k8s.patchWS('/apis/networking.k8s.io/v1/namespaces/' + k8s_namespace + '/ingresses/' + cfg_obj.hosts[i].ingress_name,JSON.stringify(obj));
+            if (runningV1) {
+                k8s.patchWS('/apis/networking.k8s.io/v1/namespaces/' + k8s_namespace + '/ingresses/' + cfg_obj.hosts[i].ingress_name,JSON.stringify(obj));
+            } else {
+                k8s.patchWS('/apis/extensions/v1beta1/namespaces/' + k8s_namespace + '/ingresses/' + cfg_obj.hosts[i].ingress_name,JSON.stringify(obj));
+            }
         }
     }
 }
@@ -862,7 +911,22 @@ function delete_k8s_deployment() {
     } else {
         k8s.deleteWS('/apis/apps/v1/namespaces/' + k8s_namespace + "/deployments/openunison-" + k8s_obj.metadata.name);
         for (var i=0;i<cfg_obj.hosts.length;i++) {
-            k8s.deleteWS('/apis/extensions/v1beta1/namespaces/' + k8s_namespace + '/ingresses/' + cfg_obj.hosts[i].ingress_name);
+
+            runningV1 = true;
+
+            // first check look
+
+            ingress_response = k8s.callWS("/apis/networking.k8s.io/v1/namespaces/" + target_ns + "/ingresses","",0);
+
+            if (ingress_response.code == 404 || ingress_response.code == 403) {
+                runningV1 = false;
+            }
+
+            if (runningV1) {
+                k8s.deleteWS('/apis/networking.k8s.io/v1/namespaces/' + k8s_namespace + '/ingresses/' + cfg_obj.hosts[i].ingress_name);
+            } else {
+                k8s.deleteWS('/apis/extensions/v1beta1/namespaces/' + k8s_namespace + '/ingresses/' + cfg_obj.hosts[i].ingress_name);
+            }
         }
     }
 
