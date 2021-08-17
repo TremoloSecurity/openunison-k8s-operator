@@ -205,7 +205,7 @@ function process_key_pair_config(key_config) {
 
         if (apiResp.code == 409) {
             print("Existing CSR, deleting");
-            k8s.deleteWS('/apis/certificates.k8s.io/v1beta1/certificatesigningrequests/' + server_name);
+            deleteObj('/apis/certificates.k8s.io/v1beta1/certificatesigningrequests/' + server_name);
             apiResp = k8s.postWS('/apis/certificates.k8s.io/v1beta1/certificatesigningrequests',JSON.stringify(csrReq));
         }
 
@@ -755,6 +755,22 @@ function isBuildOpenShift() {
         }
     } else {
         return false;
+    }
+}
+
+
+function deleteObj(objURI) {
+    obj_resp = k8s.callWS(objURI,null, 0 );
+    currentObj = JSON.parse(obj_resp.data);
+    if (obj_resp.code == 200) {
+        if ("labels" in currentObj.metadata && "app.kubernetes.io/managed-by" in currentObj.metadata.labels && currentObj.metadata.labels["app.kubernetes.io/managed-by"] == "Helm") {
+            System.out.println("Obj '" + objURI + "' managed by helm, skipping");
+        } else {
+            System.out.println("Obj '" + objURI + "' exists, deleting");
+            k8s.deleteWS(objURI);
+        }
+    } else {
+        System.out.println("Obj '" + objURI + "' doesn't exist, skipping");
     }
 }
 
