@@ -916,7 +916,7 @@ function delete_k8s_deployment() {
 
             // first check look
 
-            ingress_response = k8s.callWS("/apis/networking.k8s.io/v1/namespaces/" + target_ns + "/ingresses","",0);
+            ingress_response = k8s.callWS("/apis/networking.k8s.io/v1/namespaces/" + k8s_namespace + "/ingresses","",0);
 
             if (ingress_response.code == 404 || ingress_response.code == 403) {
                 runningV1 = false;
