@@ -28,7 +28,7 @@ function on_watch(k8s_event) {
             }
 
             if (cfg_obj.run_sql != null) {
-                proc_sql();
+                proc_sql(true);
             }
             
             
@@ -44,7 +44,13 @@ function on_watch(k8s_event) {
         
 
     } else if (event_json["type"] === "MODIFIED") {
+        
+
         if (generate_openunison_secret(event_json)) {
+
+            if (cfg_obj.run_sql != null) {
+                proc_sql(false);
+            }
 
             if (isBuildOpenShift()) {
 
@@ -68,6 +74,8 @@ function on_watch(k8s_event) {
             } else {
                 update_k8s_deployment();
             }
+
+            
 
             manageCertMgrJob();
             update_workflow_validating_webhook_certificate();

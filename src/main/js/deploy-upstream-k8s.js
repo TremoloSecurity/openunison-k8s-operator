@@ -633,7 +633,7 @@ function update_k8s_deployment() {
 
         if (deployment_info.code == 200) {
         
-            if (labels in deployment.metadata && "app.kubernetes.io/managed-by" in deployment.metadata.labels && deployment.metadata.labels["app.kubernetes.io/managed-by"] == "Helm") {
+            if ("labels" in deployment.metadata && "app.kubernetes.io/managed-by" in deployment.metadata.labels && deployment.metadata.labels["app.kubernetes.io/managed-by"] == "Helm") {
                 used_helm = true;
             }
 

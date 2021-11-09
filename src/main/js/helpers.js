@@ -63,13 +63,51 @@ function props_from_secret() {
 /*
     Process initialization SQL
 */
-function proc_sql() {
-    //load  sql
-    quartzSQL = cfg_obj.run_sql;
-    print("parsing sql");
-    parsedSQL = com.tremolosecurity.kubernetes.artifacts.util.DbUtils.parseSQL(quartzSQL);
-    print("runnins sql");
-    com.tremolosecurity.kubernetes.artifacts.util.DbUtils.runSQL(parsedSQL,inProp["OU_JDBC_DRIVER"],inProp["OU_JDBC_URL"],inProp["OU_JDBC_USER"],inProp["OU_JDBC_PASSWORD"]);
+function proc_sql(isAdd) {
+    // check for check sql
+    check_sql = cfg_obj.sql_check_query;
+    if (! isEmpty(check_sql)) {
+        
+        sql_has_been_run = true;
+        
+        try {
+            Class.forName(inProp["OU_JDBC_DRIVER"]);
+            con = DriverManager.getConnection(inProp["OU_JDBC_URL"],inProp["OU_JDBC_USER"],inProp["OU_JDBC_PASSWORD"]);
+            rs = con.createStatement().executeQuery(check_sql);
+            sql_has_been_run = rs.next();
+            rs.close();
+
+        } catch (e) {
+            print("error checking for sql");
+            print(e.message);
+        }
+
+        if (! sql_has_been_run) {
+            print("SQL hasn't been run yet, running now");
+            //load  sql
+            quartzSQL = cfg_obj.run_sql;
+            print("parsing sql");
+            parsedSQL = com.tremolosecurity.kubernetes.artifacts.util.DbUtils.parseSQL(quartzSQL);
+            print("runnins sql");
+            com.tremolosecurity.kubernetes.artifacts.util.DbUtils.runSQL(parsedSQL,inProp["OU_JDBC_DRIVER"],inProp["OU_JDBC_URL"],inProp["OU_JDBC_USER"],inProp["OU_JDBC_PASSWORD"]);
+        } else {
+            print("SQL already exists");
+        }
+
+        
+    } else {
+        if (isAdd) {
+            //load  sql
+            quartzSQL = cfg_obj.run_sql;
+            print("parsing sql");
+            parsedSQL = com.tremolosecurity.kubernetes.artifacts.util.DbUtils.parseSQL(quartzSQL);
+            print("runnins sql");
+            com.tremolosecurity.kubernetes.artifacts.util.DbUtils.runSQL(parsedSQL,inProp["OU_JDBC_DRIVER"],inProp["OU_JDBC_URL"],inProp["OU_JDBC_USER"],inProp["OU_JDBC_PASSWORD"]);
+        }
+    }
+
+
+    
 }
 
 /*
