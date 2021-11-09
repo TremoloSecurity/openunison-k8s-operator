@@ -212,105 +212,135 @@ function create_activemq() {
 
 
 function create_static_objects() {
-    obj = {"apiVersion":"v1","kind":"ServiceAccount","metadata":{"creationTimestamp":null,"name":"openunison-" + k8s_obj.metadata.name}};
-    k8s.postWS('/api/v1/namespaces/' + k8s_namespace + '/serviceaccounts',JSON.stringify(obj));
 
-    obj = {
-        "kind": "Role",
-        "apiVersion": "rbac.authorization.k8s.io/v1",
-        "metadata": {
-            "namespace": k8s_namespace,
-            "name": "oidc-user-sessions-" + k8s_obj.metadata.name
-        },
-        "rules": [
-            {
-                "apiGroups": [
-                    "openunison.tremolo.io"
-                ],
-                "resources": [
-                    "oidc-sessions",
-                    "users"
-                ],
-                "verbs": [
-                    "*"
-                ]
-            }
-        ]
-    };
+    obj_resp = k8s.callWS('/api/v1/namespaces/' + k8s_namespace + '/serviceaccounts/openunison-' + k8s_obj.metadata.name,null, 0 );
 
-    k8s.postWS('/apis/rbac.authorization.k8s.io/v1/namespaces/' + k8s_namespace + '/roles',JSON.stringify(obj));
+    if (obj_resp.code == 200) {
+        System.out.println("ServiceAccount exists, skipping");
+    } else {
+        System.out.println("Creating service account");
+        obj = {"apiVersion":"v1","kind":"ServiceAccount","metadata":{"creationTimestamp":null,"name":"openunison-" + k8s_obj.metadata.name}};
+        k8s.postWS('/api/v1/namespaces/' + k8s_namespace + '/serviceaccounts',JSON.stringify(obj)); 
+    }
 
-    obj = {
-        "kind": "RoleBinding",
-        "apiVersion": "rbac.authorization.k8s.io/v1",
-        "metadata": {
-            "name": "oidc-user-sessions-" + k8s_obj.metadata.name,
-            "namespace": k8s_namespace
-        },
-        "subjects": [
-            {
-                "kind": "ServiceAccount",
-                "name": "openunison-" + k8s_obj.metadata.name,
-                "namespace": k8s_namespace
-            }
-        ],
-        "roleRef": {
+    obj_resp = k8s.callWS('/apis/rbac.authorization.k8s.io/v1/namespaces/' + k8s_namespace + '/roles/oidc-user-sessions-' + k8s_obj.metadata.name,null, 0);
+
+    if (obj_resp.code == 200) {
+        System.out.println("Role exists, skipping");
+    } else {
+        System.out.println("Creating Role");
+        obj = {
             "kind": "Role",
-            "name": "oidc-user-sessions-" + k8s_obj.metadata.name,
-            "apiGroup": "rbac.authorization.k8s.io"
-        }
-    };
-
-    k8s.postWS('/apis/rbac.authorization.k8s.io/v1/namespaces/' + k8s_namespace + '/rolebindings',JSON.stringify(obj))
-
-    
-    
-    
-
-    obj = {
-        "apiVersion": "v1",
-        "kind": "Service",
-        "metadata": {
-            "labels": {
-                "app": "openunison-" + k8s_obj.metadata.name,
-                "operated-by": "openunison-operator"
+            "apiVersion": "rbac.authorization.k8s.io/v1",
+            "metadata": {
+                "namespace": k8s_namespace,
+                "name": "oidc-user-sessions-" + k8s_obj.metadata.name
             },
-            "name": "openunison-" + k8s_obj.metadata.name,
-            "namespace": k8s_namespace
-        },
-        "spec": {
-            "ports": [
+            "rules": [
                 {
-                    "name": "openunison-secure-" + k8s_obj.metadata.name,
-                    "port": 443,
-                    "protocol": "TCP",
-                    "targetPort": 8443
-                },
+                    "apiGroups": [
+                        "openunison.tremolo.io"
+                    ],
+                    "resources": [
+                        "oidc-sessions",
+                        "users"
+                    ],
+                    "verbs": [
+                        "*"
+                    ]
+                }
+            ]
+        };
+
+        k8s.postWS('/apis/rbac.authorization.k8s.io/v1/namespaces/' + k8s_namespace + '/roles',JSON.stringify(obj));
+    }
+
+
+    obj_resp = k8s.callWS('/apis/rbac.authorization.k8s.io/v1/namespaces/' + k8s_namespace + '/rolebindings/oidc-user-sessions-' + k8s_obj.metadata.name,null, 0);
+
+    if (obj_resp.code == 200) {
+        System.out.println("RoleBinding already exists, skipping");
+    } else {
+        System.out.println("Creating RoleBinding");
+
+        obj = {
+            "kind": "RoleBinding",
+            "apiVersion": "rbac.authorization.k8s.io/v1",
+            "metadata": {
+                "name": "oidc-user-sessions-" + k8s_obj.metadata.name,
+                "namespace": k8s_namespace
+            },
+            "subjects": [
                 {
-                    "name": "openunison-insecure-" + k8s_obj.metadata.name,
-                    "port": 80,
-                    "protocol": "TCP",
-                    "targetPort": 8080
+                    "kind": "ServiceAccount",
+                    "name": "openunison-" + k8s_obj.metadata.name,
+                    "namespace": k8s_namespace
                 }
             ],
-            "selector": {
-                "application": "openunison-" + k8s_obj.metadata.name
-            },
-            "sessionAffinity": "ClientIP",
-            "sessionAffinityConfig": {
-                "clientIP": {
-                    "timeoutSeconds": 10800
-                }
-            },
-            "type": "ClusterIP"
-        },
-        "status": {
-            "loadBalancer": {}
-        }
-    };
+            "roleRef": {
+                "kind": "Role",
+                "name": "oidc-user-sessions-" + k8s_obj.metadata.name,
+                "apiGroup": "rbac.authorization.k8s.io"
+            }
+        };
+    
+        k8s.postWS('/api/rbac.authorization.k8s.io/v1/namespaces/' + k8s_namespace + '/rolebindings',JSON.stringify(obj))
+    }
 
-    k8s.postWS('/api/v1/namespaces/' + k8s_namespace + '/services',JSON.stringify(obj));
+    
 
+    
+    obj_resp = k8s.callWS('/api/v1/namespaces/' + k8s_namespace + '/services/openunison-' + k8s_obj.metadata.name,null, 0);
+    
+    if (obj_resp.code == 200) {
+        System.out.println("Services already exists, skipping");
+    } else {
+        System.out.println("Building service");
+        obj = {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {
+                "labels": {
+                    "app": "openunison-" + k8s_obj.metadata.name,
+                    "operated-by": "openunison-operator"
+                },
+                "name": "openunison-" + k8s_obj.metadata.name,
+                "namespace": k8s_namespace
+            },
+            "spec": {
+                "ports": [
+                    {
+                        "name": "openunison-secure-" + k8s_obj.metadata.name,
+                        "port": 443,
+                        "protocol": "TCP",
+                        "targetPort": 8443
+                    },
+                    {
+                        "name": "openunison-insecure-" + k8s_obj.metadata.name,
+                        "port": 80,
+                        "protocol": "TCP",
+                        "targetPort": 8080
+                    }
+                ],
+                "selector": {
+                    "application": "openunison-" + k8s_obj.metadata.name
+                },
+                "sessionAffinity": "ClientIP",
+                "sessionAffinityConfig": {
+                    "clientIP": {
+                        "timeoutSeconds": 10800
+                    }
+                },
+                "type": "ClusterIP"
+            },
+            "status": {
+                "loadBalancer": {}
+            }
+        };
+
+        k8s.postWS('/api/v1/namespaces/' + k8s_namespace + '/services',JSON.stringify(obj));
+
+    }
     if (isBuildOpenShift()) {
         deploy_openshift_objects();
     } else {
@@ -394,7 +424,14 @@ function manageCertMgrJob() {
     resp = k8s.callWS('/apis/batch/v1beta1/namespaces/' + k8s_namespace + '/cronjobs/check-certs-' + k8s_obj.metadata.name,null,-1);
 
     if (resp.code == 200) {
+
         currentCronJob = JSON.parse(resp.data);
+
+        if ("labels" in currentCronJob.metadata && "app.kubernetes.io/managed-by" in currentCronJob.metadata.labels && currentCronJob.metadata.labels["app.kubernetes.io/managed-by"] == "Helm") {
+            System.out.println("CronJob exists and is managed by Helm, skipping");
+            return;
+        }
+
         run_patch = false;
         patch_image = false;
         patch = {};

@@ -11,3 +11,5 @@ var amq_secrets_changed = true;
 var amq_env_secrets_changed = true;
 var System = Java.type("java.lang.System");
 var Integer = Java.type("java.lang.Integer");
+var Class = Java.type("java.lang.Class");
+var DriverManager = Java.type("java.sql.DriverManager");
