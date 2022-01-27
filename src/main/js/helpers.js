@@ -346,31 +346,58 @@ function process_key_pair_config(key_config) {
 }
 
 function process_static_keys() {
+
+    skip_write_to_secret = inProp['openunison.static-secret.skip_write'] == "true";
+    secret_suffix = inProp['openunison.static-secret.suffix'];
+
+    if (secret_suffix == null) {
+        secret_suffix = '';
+    }
+
+
+
     var static_keys = {};
     //get the existing secret
-    secret_uri = "/api/v1/namespaces/" + k8s_namespace + "/secrets/" + k8s_obj.metadata.name + '-static-keys';
+    secret_uri = "/api/v1/namespaces/" + k8s_namespace + "/secrets/" + k8s_obj.metadata.name + '-static-keys' + secret_suffix;
+
+    print("loading static secrets from " + secret_uri);
+
     secret_response = k8s.callWS(secret_uri,"",-1);
 
-    if (secret_response.code == 200) {
-        print("Secret exists, deleting");
-        k8s.deleteWS(secret_uri);
+    if (secret_response.code == 200 ) {
+        if (skip_write_to_secret) {
+            print("Secret " + secret_uri + " exists but writing is disabled, not deleting.");
+
+        } else { 
+
+            print("Secret exists, deleting");
+            k8s.deleteWS(secret_uri);
+         }
 
         secret_json = JSON.parse(secret_response.data);
         for (var property in secret_json.data) {
             if (secret_json.data.hasOwnProperty(property)) {
+                print("importing '" + property + "' from secret");
                 static_key = JSON.parse(new java.lang.String(java.util.Base64.getDecoder().decode(secret_json.data[property])));
                 static_keys[static_key.name] = static_key;
                 static_key['still_used'] = false;
             }
         }
+        
+    } else if (! skip_write_to_secret) {
+        System.out.println("Secret " + secret_uri + " not found and writing disabled, openunison won't work");
     }
 
     for (var i=0;i<cfg_obj.key_store.static_keys.length;i++) {
+
         static_key_config = cfg_obj.key_store.static_keys[i];
         static_key_config_from_secret = static_keys[static_key_config.name];
 
+        print("Checking static key :'" + static_key_config.name + "'");
+
         if (static_key_config_from_secret == null) {
             //the static key doesn't exist in the secret, create it
+            print("the static key doesn't exist in the secret, create it");
             CertUtils.createKey(ouKs,static_key_config.name,ksPassword);
             static_keys[static_key_config.name] = {
                 "name":static_key_config.name,
@@ -382,6 +409,9 @@ function process_static_keys() {
 
         } else if (static_key_config_from_secret.version != static_key_config.version) {
             //exists, but needs to be updated
+            print("exists, but needs to be updated");
+            print(static_key_config_from_secret.version);
+            print(static_key_config.version);
             CertUtils.createKey(ouKs,static_key_config.name,ksPassword);
             static_keys[static_key_config.name] = {
                 "name":static_key_config.name,
@@ -392,6 +422,7 @@ function process_static_keys() {
             };
         } else  {
             //import key from secret
+            print("import key from secret");
             static_key_config_from_secret.still_used = true;
             CertUtils.storeKey(ouKs,static_key_config.name,ksPassword,static_key_config_from_secret.key_data);
         }
@@ -420,8 +451,12 @@ function process_static_keys() {
         }
     }
 
-    print("Posting secret");
-    k8s.postWS('/api/v1/namespaces/' + k8s_namespace + '/secrets',JSON.stringify(secret_to_create));
+    if (skip_write_to_secret) {
+        print("Writing to secret is disabled");
+    } else {
+        print("Posting secret");
+        k8s.postWS('/api/v1/namespaces/' + k8s_namespace + '/secrets',JSON.stringify(secret_to_create));
+    }
 
 
     
