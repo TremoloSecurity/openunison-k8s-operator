@@ -33,13 +33,22 @@ function hosts_to_props() {
             inProp[host.names[j].env_var] = host.names[j].name;
         }
     }
+    print("Done adding host variables")
 }
 
 /*
   Updates properties with values from the source secret
 */
 function props_from_secret() {
-    results = k8s.callWS("/api/v1/namespaces/" + k8s_namespace + "/secrets/" + cfg_obj.source_secret,"",-1);
+    skip_write_to_secret = inProp['openunison.static-secret.skip_write'] == "true";
+    secret_suffix = inProp['openunison.static-secret.suffix'];
+
+    if (secret_suffix == null) {
+        secret_suffix = '';
+    }
+
+
+    results = k8s.callWS("/api/v1/namespaces/" + k8s_namespace + "/secrets/" + cfg_obj.source_secret + secret_suffix,"",-1);
     if (results.code == 200) {
         secret = JSON.parse(results.data);
         for (i=0;i<cfg_obj.secret_data.length;i++) {
