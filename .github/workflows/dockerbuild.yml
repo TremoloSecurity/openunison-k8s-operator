@@ -28,5 +28,5 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: true
-          tags: docker.io/tremolosecurity/openunison-k8s-operator
+          tags: docker.io/${{ secrets.OU_CONTAINER_REPO }}/openunison-k8s-operator
           
