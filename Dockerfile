@@ -3,7 +3,7 @@ FROM ubuntu:20.04
 MAINTAINER Tremolo Security, Inc. - Docker <docker@tremolosecurity.com>
 
 ENV JDK_VERSION=1.8.0 \
-    OPENUNISON_OPERATOR_VERSION=1.2.0 
+    OPENUNISON_OPERATOR_VERSION=1.3.0 
 
 LABEL io.k8s.description="OpenUnison operator" \
       io.k8s.display-name="OpenUnison Operator" 
