@@ -270,7 +270,7 @@ if (search_res.code == 200) {
                 }
         };
 
-        selfLink = selfLink + "/" + openunison.metadata.name;
+        selfLink = uriBase + "/" + openunison.metadata.name;
 
         k8s.patchWS(selfLink,JSON.stringify(patch));
     }
