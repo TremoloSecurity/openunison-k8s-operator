@@ -29,4 +29,5 @@ jobs:
         with:
           push: true
           tags: docker.io/${{ secrets.OU_CONTAINER_REPO }}/openunison-k8s-operator
+          platforms: linux/amd64,linux/arm64
           
